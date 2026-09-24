@@ -98,7 +98,15 @@ export function buildChapterCopy(id: string, visible = false): HTMLElement | nul
   )
   // item stops only steer the story (focus does the work); never follow the hash
   div.querySelectorAll<HTMLAnchorElement>('a[data-anchor][href^="#"]').forEach(a =>
-    a.addEventListener('click', e => e.preventDefault()),
+    a.addEventListener('click', e => {
+      e.preventDefault()
+      const section = a.closest('section')
+      const hark = window.__hark
+      if (!section || !hark) return
+      const slot = hark.engine.slots.find(s => s.def.id === section.id)
+      const at = slot?.chapter.anchors?.[Number(a.dataset.anchor)]
+      if (at != null) hark.land(section.id, true, at)
+    }),
   )
   div.querySelectorAll<HTMLButtonElement>('[data-copy-email]').forEach(btn =>
     btn.addEventListener('click', async () => {
@@ -122,7 +130,10 @@ export function buildChapterCopy(id: string, visible = false): HTMLElement | nul
         }
         ta.remove()
       }
-      if (status) status.textContent = ok ? 'Copied' : `Copy failed — the address is ${BRAND.email}`
+      if (status) {
+        status.textContent = ok ? 'Copied' : `Copy failed — the address is ${BRAND.email}`
+        window.setTimeout(() => (status.textContent = ''), 2200)
+      }
     }),
   )
   return div

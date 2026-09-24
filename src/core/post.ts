@@ -177,6 +177,8 @@ export class Post {
     render.clearAlpha = 1
     this.composer.addPass(render)
     this.final = new ShaderPass(RisoShader)
+    // RenderPass always writes readBuffer; never allocate the second full-res target
+    this.final.needsSwap = false
     this.composer.addPass(this.final)
   }
 

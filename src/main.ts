@@ -4,6 +4,7 @@ import '@fontsource/dm-mono/500.css'
 import './styles/base.css'
 import './ui/ui.css'
 
+import { installPrintPolyfills } from './print/polyfills'
 import { Engine } from './core/Engine'
 import { CHAPTERS } from './chapters/index'
 import { createLoader } from './ui/loader'
@@ -35,6 +36,8 @@ declare global {
     }
   }
 }
+
+installPrintPolyfills()
 
 async function boot() {
   const canvas = document.getElementById('gl') as HTMLCanvasElement

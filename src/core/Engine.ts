@@ -115,6 +115,7 @@ export class Engine {
   private jump: { t: number; id: string; local: number; swapped: boolean } | null = null
   /** true while something (e.g. the rotate gate) covers the scene — skip rendering */
   paused = false
+  private listenerFailed = new WeakSet<object>()
   private suppressFocusLand = false
   private tmpRight = new THREE.Vector3()
   private tmpUp = new THREE.Vector3()
@@ -182,6 +183,15 @@ export class Engine {
       const slot = this.slots[this.state.index]
       slot?.chapter.onPointerDown?.(this.frame, slot.ctx)
     })
+
+    // Scrolling by wheel/touch after focusing an item stop in the copy layer
+    // would leave a stale focus pill on screen — drop that focus.
+    const dropCopyFocus = () => {
+      const a = document.activeElement as HTMLElement | null
+      if (a && a.closest('.sr-copy')) a.blur()
+    }
+    window.addEventListener('wheel', dropCopyFocus, { passive: true })
+    window.addEventListener('touchmove', dropCopyFocus, { passive: true })
 
     // A lost context takes every baked texture/PMREM with it; a reload is the
     // only honest recovery.
@@ -317,7 +327,7 @@ export class Engine {
    * built materials, geometry and textures upload before the reveal.
    */
   private async prewarm() {
-    const target = this.post.composer.renderTarget1
+    const target = this.post.composer.readBuffer
     // Compile each chapter with ONLY its own group (and lights) visible:
     // three keys programs on the visible light set, so compiling everything at
     // once builds variants no chapter ever uses and the real ones link later,
@@ -460,12 +470,20 @@ export class Engine {
   start() {
     if (this.running) return
     this.running = true
+    let reported = false
     const loop = (ms: number) => {
       if (!this.running) return
+      // re-arm first: one bad frame must never stop scrolling or rendering
+      requestAnimationFrame(loop)
       this.timer.update(ms)
       this.lenis.raf(ms)
-      if (!this.paused) this.tick()
-      requestAnimationFrame(loop)
+      if (this.paused) return
+      try {
+        this.tick()
+      } catch (err) {
+        if (!reported) console.error('[hark] frame failed', err)
+        reported = true
+      }
     }
     requestAnimationFrame(loop)
   }
@@ -598,12 +616,21 @@ export class Engine {
         prev.chapter.group.visible = false
         prev.stage.classList.remove('is-active')
         prev.stage.inert = true
-        prev.chapter.onLeave?.(prev.ctx)
+        try {
+          prev.chapter.onLeave?.(prev.ctx)
+        } catch (err) {
+          console.error(`[hark] chapter "${prev.def.id}" failed in onLeave`, err)
+        }
       }
       slot.chapter.group.visible = true
       slot.stage.classList.add('is-active')
       slot.stage.inert = false
-      slot.chapter.onEnter?.(slot.ctx)
+      try {
+        slot.chapter.onEnter?.(slot.ctx)
+      } catch (err) {
+        if (!slot.failed) console.error(`[hark] chapter "${slot.def.id}" failed in onEnter`, err)
+        slot.failed = true
+      }
       const from = this.state.index
       this.state.index = index
       document.documentElement.dataset.chapter = slot.def.id
@@ -614,7 +641,13 @@ export class Engine {
         } catch {
           /* sandboxed */
         }
-        for (const fn of this.onCut) fn(from, index)
+        for (const fn of this.onCut) {
+          try {
+            fn(from, index)
+          } catch (err) {
+            console.error('[hark] cut listener failed', err)
+          }
+        }
       }
     }
     this.state.local = local
@@ -635,7 +668,14 @@ export class Engine {
     }
     this.applyCamera(this.reducedMotion ? 0 : this.pose.parallax)
 
-    for (const fn of this.onFrame) fn(f, this.state)
+    for (const fn of this.onFrame) {
+      try {
+        fn(f, this.state)
+      } catch (err) {
+        if (!this.listenerFailed.has(fn)) console.error('[hark] frame listener failed', err)
+        this.listenerFailed.add(fn)
+      }
+    }
     this.renderer.info.reset()
     this.post.render(f.dt, f.time)
   }

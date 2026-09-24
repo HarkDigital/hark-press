@@ -32,7 +32,7 @@
 
   --gutter: max(clamp(16px, 3.4vw, 48px), env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
   --safe-top: calc(clamp(80px, 10.5vh, 112px) + env(safe-area-inset-top, 0px));
-  --safe-bottom: calc(clamp(72px, 9.5vh, 100px) + env(safe-area-inset-bottom, 0px));
+  --safe-bottom: calc(clamp(82px, 10.5vh, 110px) + env(safe-area-inset-bottom, 0px));
 
   color-scheme: light;
 }
@@ -238,6 +238,7 @@ a {
   text-transform: uppercase;
   margin: 0;
   color: var(--fg);
+  text-shadow: 0.04em 0.025em 0 rgba(255, 62, 157, 0.85);
   text-shadow: 0.04em 0.025em 0 color-mix(in srgb, var(--ghost) 85%, transparent);
   text-wrap: balance;
 }
@@ -251,14 +252,20 @@ a {
   text-transform: uppercase;
   margin: 0;
   color: var(--fg);
+  text-shadow: 0.035em 0.02em 0 rgba(255, 62, 157, 0.85);
   text-shadow: 0.035em 0.02em 0 color-mix(in srgb, var(--ghost) 85%, transparent);
   text-wrap: balance;
 }
-/* <em> = the second drum: that word prints in green (or pink on ink) */
+/* <em> = the second drum: that word prints in green (or pink on ink), trapped
+   with a thin key-ink keyline like a riso printer would — the green alone is
+   too light on newsprint to read as large text */
 .hud-title em,
 .hud-h2 em {
   font-style: normal;
   color: var(--green);
+  -webkit-text-stroke: 0.028em var(--ink);
+  paint-order: stroke fill;
+  text-shadow: 0.04em 0.025em 0 rgba(27, 27, 31, 0.85);
   text-shadow: 0.04em 0.025em 0 color-mix(in srgb, var(--ink) 85%, transparent);
 }
 .on-ink .hud-title em,
@@ -483,6 +490,9 @@ a {
   bottom: calc(var(--safe-bottom) + 8px);
   transform: translateX(-50%);
   z-index: 40;
+  max-width: calc(100vw - 2 * var(--gutter));
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
   font-family: var(--font-mono);
   font-size: 12px;
