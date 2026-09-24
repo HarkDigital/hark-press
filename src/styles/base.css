@@ -425,6 +425,9 @@ a {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
   }
+  .rise .rise-w > span {
+    transition-delay: 0s !important;
+  }
 }
 
 /* ---------------- word stamp reveal (src/core/dom.ts rise/setRise) ----------------

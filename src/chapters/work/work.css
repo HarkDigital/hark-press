@@ -1,0 +1,299 @@
+/* ------------------------------------------------------------------
+   PASTE-UP (work) — job tickets taped beside each fresh poster, a
+   notice-board card for the nine, and hotspots over the flyers.
+   Everything scoped to .stage-work.
+   ------------------------------------------------------------------ */
+
+.stage-work {
+  --wk-card-w: min(430px, 37vw);
+}
+
+/* ---------- shared "stamp down" for paper cards ---------- */
+.stage-work .wk-card,
+.stage-work .wk-sticker,
+.stage-work .wk-board-card,
+.stage-work .wk-board-cta {
+  opacity: 0;
+  visibility: hidden;
+  transform: translate3d(0, -16px, 0) rotate(-5deg) scale(1.06);
+  transition:
+    transform 0.36s cubic-bezier(0.3, 1.7, 0.5, 1),
+    opacity 0.14s ease,
+    visibility 0s linear 0.36s;
+}
+.stage-work .wk-card.is-on,
+.stage-work .is-on .wk-sticker,
+.stage-work .wk-board.is-on .wk-board-card,
+.stage-work .wk-board.is-on .wk-board-cta {
+  opacity: 1;
+  visibility: visible;
+  transition-delay: 0s;
+}
+.stage-work .wk-card.is-on {
+  transform: rotate(-0.8deg);
+}
+.stage-work .wk-slot.is-right .wk-card.is-on {
+  transform: rotate(0.7deg);
+}
+.stage-work .is-on .wk-sticker {
+  transform: rotate(-1.6deg);
+}
+.stage-work .wk-board.is-on .wk-board-card {
+  transform: rotate(-0.9deg);
+}
+.stage-work .wk-board.is-on .wk-board-cta {
+  transform: none;
+  transition-delay: 0.12s, 0.12s, 0s;
+}
+
+/* masking tape holding a card to the wall */
+.stage-work .wk-tape {
+  position: absolute;
+  top: -13px;
+  left: 50%;
+  width: 92px;
+  height: 24px;
+  margin-left: -46px;
+  transform: rotate(-3deg);
+  background:
+    repeating-linear-gradient(90deg, rgba(27, 27, 31, 0.05) 0 2px, transparent 2px 6px),
+    rgba(231, 224, 210, 0.92);
+  border-left: 1px dashed rgba(27, 27, 31, 0.25);
+  border-right: 1px dashed rgba(27, 27, 31, 0.25);
+  pointer-events: none;
+}
+
+/* ---------- opener caption ---------- */
+.stage-work .wk-intro {
+  position: absolute;
+  left: var(--gutter);
+  bottom: var(--safe-bottom);
+  max-width: min(360px, 34vw);
+}
+.stage-work .wk-sticker {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px 11px;
+  background: var(--paper-2);
+  border: 2px solid var(--ink);
+  border-radius: 3px;
+  box-shadow: 4px 4px 0 var(--ink);
+}
+.stage-work .wk-intro-note {
+  margin: 0;
+  color: var(--fg-muted);
+}
+
+/* ---------- job tickets ---------- */
+.stage-work .wk-slot {
+  position: absolute;
+  top: var(--safe-top);
+  bottom: var(--safe-bottom);
+  width: var(--wk-card-w);
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+}
+.stage-work .wk-slot.is-left {
+  left: var(--gutter);
+}
+.stage-work .wk-slot.is-right {
+  right: var(--gutter);
+}
+.stage-work .wk-card {
+  position: relative;
+  width: 100%;
+  padding: 22px 24px 20px;
+}
+.stage-work .wk-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.stage-work .wk-stamp {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: var(--pink);
+  border: 2px solid var(--ink);
+  padding: 3px 8px 2px;
+  transform: rotate(4deg);
+  white-space: nowrap;
+}
+.stage-work .wk-name {
+  font-size: clamp(2rem, 3.3vw, 3.5rem);
+  line-height: 0.88;
+  margin: 0 0 10px;
+}
+.stage-work .wk-ind {
+  margin: 0 0 12px;
+  color: var(--fg);
+}
+.stage-work .wk-blurb {
+  margin: 0 0 14px;
+  max-width: none;
+  color: var(--fg-muted);
+}
+.stage-work .wk-card .hud-rule {
+  margin: 16px 0 16px;
+}
+.stage-work .wk-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.stage-work .wk-meta {
+  margin: 0;
+}
+
+/* ---------- the board ---------- */
+.stage-work .wk-board {
+  position: absolute;
+  left: var(--gutter);
+  top: var(--safe-top);
+  bottom: var(--safe-bottom);
+  width: min(400px, 33vw);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 22px;
+  pointer-events: none;
+}
+.stage-work .wk-board-card {
+  position: relative;
+  padding: 22px 24px 20px;
+}
+.stage-work .wk-board-title {
+  font-size: clamp(2.3rem, 4.1vw, 4.4rem);
+  margin: 14px 0 12px;
+}
+.stage-work .wk-board-note {
+  margin: 0;
+}
+.stage-work .wk-board-cta {
+  display: flex;
+}
+
+/* ---------- flyer hotspots ---------- */
+.stage-work .wk-spots {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.stage-work .wk-spot {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: none;
+  border: 2px solid transparent;
+  border-radius: 2px;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.stage-work .wk-spot.is-on {
+  display: block;
+}
+.stage-work .wk-spot-tag {
+  position: absolute;
+  left: 50%;
+  bottom: -14px;
+  transform: translate(-50%, 4px) rotate(-2deg);
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: var(--green);
+  border: 1.5px solid var(--ink);
+  padding: 3px 7px 2px;
+  opacity: 0;
+  transition:
+    opacity 0.15s ease,
+    transform 0.22s cubic-bezier(0.3, 1.7, 0.5, 1);
+  pointer-events: none;
+}
+.stage-work .wk-spot:hover,
+.stage-work .wk-spot.is-hot {
+  border-color: var(--green);
+  box-shadow: 0 0 0 2px var(--ink);
+}
+.stage-work .wk-spot:hover .wk-spot-tag,
+.stage-work .wk-spot.is-hot .wk-spot-tag {
+  opacity: 1;
+  transform: translate(-50%, 0) rotate(-2deg);
+}
+
+/* ---------- portrait: poster on top, paper below ---------- */
+.stage-work.is-portrait .wk-intro {
+  left: var(--gutter);
+  right: var(--gutter);
+  max-width: none;
+}
+.stage-work.is-portrait .wk-slot {
+  top: auto;
+  left: var(--gutter);
+  right: var(--gutter);
+  width: auto;
+  align-items: flex-end;
+}
+.stage-work.is-portrait .wk-card {
+  padding: 16px 18px 16px;
+}
+.stage-work.is-portrait .wk-name {
+  font-size: clamp(1.7rem, 7.2vw, 3rem);
+}
+.stage-work.is-portrait .wk-card-top {
+  margin-bottom: 10px;
+}
+.stage-work.is-portrait .wk-card .hud-rule {
+  margin: 12px 0;
+}
+.stage-work.is-portrait .wk-board {
+  left: var(--gutter);
+  right: var(--gutter);
+  width: auto;
+  justify-content: space-between;
+}
+.stage-work.is-portrait .wk-board-card {
+  padding: 14px 18px 14px;
+}
+.stage-work.is-portrait .wk-board-title {
+  font-size: clamp(1.9rem, 8vw, 3.2rem);
+  margin: 10px 0 8px;
+}
+.stage-work.is-portrait .wk-board-cta {
+  justify-content: center;
+}
+.stage-work.is-portrait .wk-card.is-on,
+.stage-work.is-portrait .wk-slot.is-right .wk-card.is-on {
+  transform: rotate(-0.5deg);
+}
+
+/* short phones: keep the poster big, trim the ticket */
+@media (max-height: 740px) and (max-aspect-ratio: 1/1) {
+  .stage-work .wk-blurb {
+    display: none;
+  }
+  .stage-work .wk-card .hud-rule {
+    margin: 10px 0;
+  }
+  .stage-work .wk-board-note {
+    display: none;
+  }
+}
+@media (max-height: 560px) {
+  .stage-work .wk-blurb,
+  .stage-work .wk-tags {
+    display: none;
+  }
+}

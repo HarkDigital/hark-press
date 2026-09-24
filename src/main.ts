@@ -19,7 +19,6 @@ import { mountDebug } from './core/debug'
  *   ?p=0.42             jump to global progress
  *   ?only=work          init only that chapter (fast dev loop)
  *   ?debug              fps / chapter / progress readout
- *   ?gate               always ask "Play with sound / Enter quietly" (demos)
  */
 const params = new URLSearchParams(location.search)
 

@@ -1,0 +1,484 @@
+/* Type Case — the letterpress chapter. Every selector is scoped to .stage-services. */
+
+.stage-services {
+  --svc-col: min(430px, 33vw);
+  --svc-intro: min(46vw, 700px);
+}
+
+/* an empty box on the safe band: the camera reads it (hud.ts metrics) */
+.stage-services .svc-probe {
+  position: absolute;
+  top: var(--safe-top);
+  bottom: var(--safe-bottom);
+  left: 0;
+  width: 1px;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* ---------------- intro + finale posters ---------------- */
+.stage-services .svc-intro,
+.stage-services .svc-finale {
+  position: absolute;
+  left: var(--gutter);
+  top: var(--safe-top);
+  bottom: var(--safe-bottom);
+  max-width: var(--svc-intro);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 20px;
+  visibility: hidden;
+  transition: visibility 0s linear 0.35s;
+}
+.stage-services .svc-intro.is-on,
+.stage-services .svc-finale.is-on {
+  visibility: visible;
+  transition-delay: 0s;
+}
+.stage-services .svc-intro .hud-eyebrow,
+.stage-services .svc-intro-slug,
+.stage-services .svc-finale .hud-eyebrow {
+  opacity: 0;
+  transform: translate3d(0, -6px, 0);
+  transition:
+    opacity 0.2s ease,
+    transform 0.3s ease;
+}
+.stage-services .is-on > .hud-eyebrow,
+.stage-services .is-on > .svc-intro-slug {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 0.3s ease 0.1s,
+    transform 0.45s cubic-bezier(0.3, 1.6, 0.5, 1) 0.1s;
+}
+.stage-services .svc-intro-title,
+.stage-services .svc-finale-title {
+  font-size: clamp(3rem, 6.4vw, 7.2rem);
+}
+/* the finale: a label pasted onto the bench under the last proof */
+.stage-services .svc-finale {
+  top: auto;
+  left: 50%;
+  max-width: calc(100vw - 2 * var(--gutter));
+  width: max-content;
+  gap: 12px;
+  padding: 18px 26px 20px;
+  background: var(--paper-2);
+  border: 2px solid var(--ink);
+  border-radius: 2px;
+  box-shadow: 6px 6px 0 var(--ink);
+  opacity: 0;
+  transform: translate3d(-50%, 18px, 0) rotate(-3.5deg) scale(1.05);
+  transition:
+    transform 0.25s ease-in,
+    opacity 0.2s ease,
+    visibility 0s linear 0.25s;
+}
+.stage-services .svc-finale.is-on {
+  opacity: 1;
+  transform: translate3d(-50%, 0, 0) rotate(-1.2deg);
+  transition:
+    transform 0.5s cubic-bezier(0.25, 1.5, 0.45, 1),
+    opacity 0.12s ease,
+    visibility 0s;
+}
+.stage-services .svc-finale-title {
+  font-size: clamp(2.4rem, 5.6vw, 6.4rem);
+  text-wrap: nowrap;
+}
+.stage-services .svc-intro-slug {
+  margin: 0;
+}
+
+/* ---------------- the column: proof pile + index ---------------- */
+.stage-services .svc-col {
+  position: absolute;
+  left: var(--gutter);
+  top: var(--safe-top);
+  bottom: var(--safe-bottom);
+  width: var(--svc-col);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 22px;
+  visibility: hidden;
+  opacity: 0;
+  transition:
+    opacity 0.25s ease,
+    visibility 0s linear 0.25s;
+}
+.stage-services .svc-col.is-on {
+  visibility: visible;
+  opacity: 1;
+  transition:
+    opacity 0.2s ease,
+    visibility 0s;
+}
+
+/* all eleven proofs share one grid cell: the pile never changes size */
+.stage-services .svc-pile {
+  display: grid;
+  padding: 10px 12px 12px 4px;
+}
+.stage-services .svc-slip {
+  grid-area: 1 / 1;
+  align-self: center;
+  position: relative;
+  padding: 16px 20px 14px;
+  background: var(--paper-2);
+  border: 2px solid var(--ink);
+  border-radius: 2px;
+  box-shadow: 5px 5px 0 var(--ink);
+  color: var(--ink);
+  visibility: hidden;
+  opacity: 0;
+  transform: translate3d(0, -30px, 0) rotate(calc(var(--rot) - 6deg)) scale(1.08);
+  transition:
+    transform 0.22s ease-in,
+    opacity 0.16s ease,
+    visibility 0s linear 0.22s;
+}
+/* the fresh proof stamps down on top of the pile */
+.stage-services .svc-slip.is-on {
+  z-index: 2;
+  visibility: visible;
+  opacity: 1;
+  transform: translate3d(0, 0, 0) rotate(var(--rot)) scale(1);
+  transition:
+    transform 0.44s cubic-bezier(0.25, 1.55, 0.45, 1),
+    opacity 0.1s ease,
+    visibility 0s;
+}
+/* the last one stays underneath, knocked a little askew */
+.stage-services .svc-slip.is-under {
+  z-index: 1;
+  visibility: visible;
+  opacity: 1;
+  background: var(--paper-3);
+  transform: translate3d(calc(var(--dx) * 1.5 + 6px), 12px, 0) rotate(calc(var(--rot) * -1.8)) scale(0.985);
+  transition:
+    transform 0.5s cubic-bezier(0.25, 1.4, 0.45, 1) 0.12s,
+    background 0.3s ease 0.12s,
+    opacity 0.1s ease,
+    visibility 0s;
+}
+.stage-services .svc-slip.is-under > :not(.svc-crop) {
+  visibility: hidden;
+}
+
+.stage-services .svc-slug {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  margin-bottom: 14px;
+  border-bottom: 1.5px dashed var(--line-strong);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.stage-services .svc-no {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.stage-services .svc-no::before {
+  content: '';
+  width: 11px;
+  height: 11px;
+  flex: none;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  background:
+    linear-gradient(currentColor, currentColor) center / 1.5px 100% no-repeat,
+    linear-gradient(currentColor, currentColor) center / 100% 1.5px no-repeat;
+}
+/* a rubber PROOF stamp, inked pink */
+.stage-services .svc-stamp {
+  padding: 2px 7px 1px;
+  background: var(--pink);
+  color: var(--ink);
+  border: 1.5px solid var(--ink);
+  transform: rotate(-5deg);
+  mix-blend-mode: multiply;
+  letter-spacing: 0.16em;
+}
+.stage-services .svc-slip.is-on .svc-stamp {
+  animation: svc-stamp 0.5s cubic-bezier(0.3, 1.6, 0.5, 1) 0.28s both;
+}
+@keyframes svc-stamp {
+  from {
+    opacity: 0;
+    transform: rotate(-12deg) scale(1.9);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(-5deg) scale(1);
+  }
+}
+
+.stage-services .svc-title {
+  font-size: clamp(1.8rem, 2.6vw, 2.8rem);
+  line-height: 0.92;
+  margin: 0 0 12px;
+}
+.stage-services .svc-blurb {
+  font-size: clamp(14px, 1.02vw, 16px);
+  line-height: 1.45;
+  color: rgba(27, 27, 31, 0.78);
+  margin: 0 0 14px;
+  max-width: none;
+}
+.stage-services .svc-tags {
+  gap: 5px;
+}
+.stage-services .svc-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1.5px dashed var(--line-strong);
+}
+.stage-services .svc-foot .hud-label {
+  color: rgba(27, 27, 31, 0.74);
+  font-size: 10.5px;
+}
+.stage-services .svc-bar {
+  display: inline-flex;
+  gap: 3px;
+  flex: none;
+}
+.stage-services .svc-bar i {
+  width: 11px;
+  height: 11px;
+  border: 1.5px solid var(--ink);
+}
+.stage-services .svc-bar-p {
+  background: var(--pink);
+}
+.stage-services .svc-bar-g {
+  background: var(--green);
+}
+.stage-services .svc-bar-k {
+  background: var(--ink);
+}
+
+/* printer's crop marks just outside each corner */
+.stage-services .svc-crop {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+.stage-services .svc-crop::before,
+.stage-services .svc-crop::after {
+  content: '';
+  position: absolute;
+  background: var(--ink);
+}
+.stage-services .svc-crop::before {
+  width: 1.5px;
+  height: 12px;
+}
+.stage-services .svc-crop::after {
+  width: 12px;
+  height: 1.5px;
+}
+.stage-services .svc-crop--tl {
+  left: -2px;
+  top: -2px;
+}
+.stage-services .svc-crop--tl::before {
+  left: 0;
+  bottom: 7px;
+}
+.stage-services .svc-crop--tl::after {
+  top: 0;
+  right: 7px;
+}
+.stage-services .svc-crop--tr {
+  right: -2px;
+  top: -2px;
+}
+.stage-services .svc-crop--tr::before {
+  right: 0;
+  bottom: 7px;
+}
+.stage-services .svc-crop--tr::after {
+  top: 0;
+  left: 7px;
+}
+.stage-services .svc-crop--bl {
+  left: -2px;
+  bottom: -2px;
+}
+.stage-services .svc-crop--bl::before {
+  left: 0;
+  top: 13px;
+}
+.stage-services .svc-crop--bl::after {
+  bottom: 0;
+  right: 7px;
+}
+.stage-services .svc-crop--br {
+  right: -2px;
+  bottom: -2px;
+}
+.stage-services .svc-crop--br::before {
+  right: 0;
+  top: 13px;
+}
+.stage-services .svc-crop--br::after {
+  bottom: 0;
+  left: 13px;
+}
+
+/* 01–11: the case's index strip */
+.stage-services .svc-keys {
+  order: 2;
+  display: grid;
+  grid-template-columns: repeat(11, minmax(0, 1fr));
+  gap: 5px;
+  max-width: 400px;
+}
+.stage-services .svc-key {
+  appearance: none;
+  margin: 0;
+  min-height: 28px;
+  padding: 0;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+  background: var(--paper-2);
+  border: 1.5px solid var(--ink);
+  border-radius: 2px;
+  box-shadow: 2px 2px 0 var(--ink);
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    background 0.2s ease;
+}
+.stage-services .svc-key:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 var(--ink);
+}
+.stage-services .svc-key:active {
+  transform: translate(2px, 2px);
+  box-shadow: 0 0 0 var(--ink);
+}
+.stage-services .svc-key.is-on {
+  background: var(--green);
+  transform: translate(2px, 2px);
+  box-shadow: 0 0 0 var(--ink);
+}
+
+/* ---------------- phones & portrait: the pile is a bottom sheet ---------------- */
+@media (max-width: 767px), (max-aspect-ratio: 4/5) {
+  .stage-services .svc-intro,
+  .stage-services .svc-finale {
+    top: auto;
+    right: var(--gutter);
+    width: auto;
+    justify-content: flex-end;
+    gap: 12px;
+  }
+  .stage-services .svc-intro-title {
+    font-size: clamp(2.6rem, 11.5vw, 4.6rem);
+  }
+  .stage-services .svc-finale {
+    left: var(--gutter);
+    width: auto;
+    padding: 14px 16px 16px;
+    box-shadow: 4px 4px 0 var(--ink);
+    transform: translate3d(0, 14px, 0) rotate(-3deg) scale(1.04);
+  }
+  .stage-services .svc-finale.is-on {
+    transform: translate3d(0, 0, 0) rotate(-1deg);
+  }
+  .stage-services .svc-finale-title {
+    font-size: clamp(2.3rem, 10.5vw, 4.2rem);
+    text-wrap: balance;
+  }
+  .stage-services .svc-col {
+    top: auto;
+    right: var(--gutter);
+    width: auto;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+  .stage-services .svc-keys {
+    order: 0;
+    max-width: none;
+    gap: 4px;
+  }
+  .stage-services .svc-key {
+    min-height: 24px;
+    font-size: 10px;
+    box-shadow: 1.5px 1.5px 0 var(--ink);
+  }
+  .stage-services .svc-pile {
+    padding: 4px 6px 6px 2px;
+  }
+  .stage-services .svc-slip {
+    padding: 12px 14px 11px;
+    box-shadow: 4px 4px 0 var(--ink);
+    transform: translate3d(0, -24px, 0) rotate(calc(var(--rot) * 0.5 - 5deg)) scale(1.06);
+  }
+  .stage-services .svc-slip.is-on {
+    transform: translate3d(0, 0, 0) rotate(calc(var(--rot) * 0.5)) scale(1);
+  }
+  .stage-services .svc-slip.is-under {
+    transform: translate3d(calc(var(--dx) * 0.6), 7px, 0) rotate(calc(var(--rot) * -0.9)) scale(0.99);
+  }
+  .stage-services .svc-slug {
+    padding-bottom: 7px;
+    margin-bottom: 9px;
+    font-size: 10px;
+  }
+  .stage-services .svc-title {
+    font-size: clamp(1.45rem, 7vw, 2.1rem);
+    margin-bottom: 8px;
+  }
+  .stage-services .svc-blurb {
+    font-size: 13.5px;
+    line-height: 1.4;
+    margin-bottom: 9px;
+  }
+  .stage-services .svc-tags .hud-tag {
+    font-size: 9.5px;
+    padding: 3px 6px;
+  }
+  .stage-services .svc-foot {
+    display: none;
+  }
+}
+
+@media (max-height: 700px) and (max-width: 767px) {
+  .stage-services .svc-blurb {
+    font-size: 13px;
+  }
+  .stage-services .svc-tags {
+    display: none;
+  }
+}
+
+@media (max-height: 760px) and (min-width: 768px) and (min-aspect-ratio: 4/5) {
+  .stage-services .svc-title {
+    font-size: clamp(1.6rem, 2.3vw, 2.3rem);
+  }
+  .stage-services .svc-blurb {
+    font-size: 14px;
+  }
+  .stage-services .svc-foot {
+    display: none;
+  }
+}

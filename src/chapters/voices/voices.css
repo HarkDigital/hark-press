@@ -1,0 +1,373 @@
+/* ------------------------------------------------------------------
+   Zine (voices) — the eyebrow, and the taped paste-up card beside the
+   zine that carries the contents page and each voice as live type.
+   Every selector is scoped under .stage-voices.
+   ------------------------------------------------------------------ */
+
+.stage-voices .vz-eyebrow {
+  position: absolute;
+  left: var(--gutter);
+  top: var(--safe-top);
+}
+
+/* ---------------- the card ---------------- */
+
+.stage-voices .vz-side {
+  position: absolute;
+  right: var(--gutter);
+  top: calc(var(--safe-top) + 30px);
+  bottom: var(--safe-bottom);
+  width: clamp(300px, 31vw, 452px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.stage-voices .vz-panel {
+  position: relative;
+  padding: clamp(18px, 2.2vw, 28px) clamp(18px, 2vw, 26px) clamp(14px, 1.6vw, 20px);
+  background: var(--paper-2);
+  border: 2px solid var(--ink);
+  border-radius: 3px;
+  box-shadow: 6px 6px 0 var(--ink);
+  transform-origin: 70% 0%;
+  opacity: 0;
+  visibility: hidden;
+  transform: translate3d(0, -18px, 0) rotate(-3deg) scale(1.04);
+  transition:
+    transform 0.28s cubic-bezier(0.5, 0, 0.75, 0),
+    opacity 0.2s ease,
+    visibility 0s linear 0.28s;
+}
+/* pasted down: drops, overshoots a touch flat, settles (stop-motion snappy) */
+.stage-voices .vz-side.is-on .vz-panel {
+  opacity: 1;
+  visibility: visible;
+  transform: rotate(0.6deg);
+  transition:
+    transform 0.46s cubic-bezier(0.3, 1.7, 0.5, 1),
+    opacity 0.12s ease,
+    visibility 0s;
+}
+
+/* washi tape holding the card down: pink, overprinted */
+.stage-voices .vz-tape {
+  position: absolute;
+  top: -15px;
+  left: 50%;
+  width: 104px;
+  height: 28px;
+  margin-left: -52px;
+  background: color-mix(in srgb, var(--pink) 72%, transparent);
+  mix-blend-mode: multiply;
+  transform: rotate(-4deg);
+  clip-path: polygon(0 8%, 4% 0, 9% 10%, 14% 0, 100% 0, 97% 50%, 100% 100%, 5% 100%, 0 92%, 3% 50%);
+}
+.stage-voices .vz-tape--b {
+  top: auto;
+  bottom: -12px;
+  left: auto;
+  right: -22px;
+  width: 74px;
+  margin: 0;
+  background: color-mix(in srgb, var(--green) 70%, transparent);
+  transform: rotate(38deg);
+}
+
+/* all blocks share one grid cell, so the card never jumps size */
+.stage-voices .vz-stack {
+  display: grid;
+}
+.stage-voices .vz-block {
+  grid-area: 1 / 1;
+  min-width: 0;
+  visibility: hidden;
+  transition: visibility 0s linear 0.26s;
+}
+.stage-voices .vz-block.is-on {
+  visibility: visible;
+  transition-delay: 0s;
+}
+
+.stage-voices .vz-slug {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 clamp(10px, 1.6vh, 16px);
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--ink);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink);
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+.stage-voices .vz-block.is-on .vz-slug {
+  opacity: 1;
+  transition-delay: 0.12s;
+}
+
+/* ---------------- contents ---------------- */
+
+.stage-voices .vz-toc-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 1px;
+}
+.stage-voices .vz-toc-list li {
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  align-items: baseline;
+  gap: 10px;
+  padding: 5px 0;
+  border-bottom: 1.5px dashed var(--line-strong);
+  opacity: 0;
+  transform: translate3d(0, -6px, 0) rotate(-1.5deg);
+  transition:
+    transform 0.2s ease,
+    opacity 0.15s ease;
+}
+.stage-voices .vz-toc.is-on .vz-toc-list li {
+  opacity: 1;
+  transform: none;
+  transition:
+    transform 0.4s cubic-bezier(0.3, 1.6, 0.5, 1),
+    opacity 0.12s ease;
+  transition-delay: calc(0.1s + var(--i, 0) * 40ms);
+}
+.stage-voices .vz-pp {
+  font-family: var(--font-sans);
+  font-weight: 800;
+  font-stretch: 78%;
+  font-size: 17px;
+  line-height: 1;
+  color: var(--ink);
+}
+.stage-voices .vz-who {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 8px;
+  align-items: baseline;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  line-height: 1.35;
+}
+.stage-voices .vz-who b {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  font-weight: 700;
+  font-stretch: 86%;
+  letter-spacing: -0.005em;
+  text-transform: none;
+  color: var(--ink);
+}
+.stage-voices .vz-hint {
+  margin: clamp(10px, 1.6vh, 14px) 0 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.stage-voices .vz-hint::before {
+  content: '';
+  width: 18px;
+  height: 0;
+  border-top: 2px solid var(--ink);
+}
+.stage-voices .vz-toc.is-on .vz-hint {
+  opacity: 1;
+  transition-delay: 0.5s;
+}
+
+/* ---------------- a voice ---------------- */
+
+/* quote at the head of the card, the credit pinned to its foot */
+.stage-voices .vz-voice {
+  display: flex;
+  flex-direction: column;
+}
+.stage-voices .vz-voice .vz-rule {
+  margin-top: auto;
+}
+
+.stage-voices .vz-q {
+  margin: 0;
+  padding: 0;
+}
+.stage-voices .vz-q .hud-quote {
+  font-size: clamp(1.1rem, 0.62rem + 1.2vw, 1.9rem);
+  line-height: 1.1;
+  letter-spacing: -0.012em;
+  text-indent: -0.4em;
+}
+.stage-voices .vz-q .rise-w,
+.stage-voices .vz-q .rise-w > span {
+  text-indent: 0;
+}
+/* long quotes land in under a second: stamp stagger capped, a beat after the old one sinks */
+.stage-voices .vz-q .rise.is-in .rise-w > span {
+  transition-delay: calc(0.14s + min(var(--i, 0), 30) * 16ms);
+}
+.stage-voices .vz-rule {
+  margin-bottom: 10px;
+  padding-top: clamp(12px, 1.8vh, 18px);
+  border-width: 0;
+  background: linear-gradient(90deg, var(--ink) 50%, transparent 0) bottom left / 7px 1.5px repeat-x;
+  height: calc(clamp(12px, 1.8vh, 18px) + 1.5px);
+  border-top-color: var(--ink);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.stage-voices .vz-block.is-on .vz-rule {
+  opacity: 1;
+  transition-delay: 0.3s;
+}
+.stage-voices .vz-name {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-weight: 800;
+  font-stretch: 80%;
+  font-size: clamp(18px, 1.5vw, 22px);
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.stage-voices .vz-co {
+  margin: 4px 0 0;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+.stage-voices .vz-name.is-in .rise-w > span,
+.stage-voices .vz-co.is-in .rise-w > span {
+  transition-delay: calc(0.34s + var(--i, 0) * 40ms);
+}
+
+/* ---------------- page tabs ---------------- */
+
+.stage-voices .vz-tabs {
+  display: flex;
+  gap: 5px;
+  margin-top: clamp(12px, 1.8vh, 18px);
+}
+.stage-voices .vz-tab {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-align: center;
+  line-height: 1;
+  padding: 5px 0 4px;
+  color: var(--ink);
+  border: 1.5px solid var(--ink);
+  border-radius: 2px;
+  transition:
+    background-color 0.15s steps(2),
+    transform 0.3s cubic-bezier(0.3, 1.8, 0.5, 1);
+}
+.stage-voices .vz-tab.is-done {
+  background: var(--paper-3);
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+}
+.stage-voices .vz-tab.is-on {
+  background: var(--green);
+  transform: translateY(-3px);
+  box-shadow: 2px 2px 0 var(--ink);
+}
+
+/* ---------------- portrait: zine on top, the card below ---------------- */
+
+@media (max-aspect-ratio: 9/10) {
+  .stage-voices .vz-side {
+    left: var(--gutter);
+    right: var(--gutter);
+    top: auto;
+    width: auto;
+    max-width: 560px;
+    margin: 0 auto;
+    justify-content: flex-end;
+  }
+  .stage-voices .vz-panel {
+    padding: 16px 16px 12px;
+    box-shadow: 4px 4px 0 var(--ink);
+  }
+  .stage-voices .vz-q .hud-quote {
+    font-size: clamp(15.5px, 4.25vw, 22px);
+    line-height: 1.12;
+  }
+  .stage-voices .vz-slug {
+    margin-bottom: 9px;
+    padding-bottom: 6px;
+    font-size: 10.5px;
+  }
+  .stage-voices .vz-rule {
+    margin-bottom: 7px;
+  }
+  .stage-voices .vz-name {
+    font-size: 17px;
+  }
+  .stage-voices .vz-co {
+    font-size: 10.5px;
+  }
+  /* contents in two compact columns: page + name only */
+  .stage-voices .vz-toc-list {
+    grid-template-columns: 1fr 1fr;
+    grid-auto-flow: column;
+    grid-template-rows: repeat(4, auto);
+    column-gap: 14px;
+  }
+  .stage-voices .vz-toc-list li {
+    grid-template-columns: 22px 1fr;
+    gap: 6px;
+    padding: 4px 0;
+  }
+  .stage-voices .vz-pp {
+    font-size: 15px;
+  }
+  .stage-voices .vz-who {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .stage-voices .vz-who > span {
+    display: none;
+  }
+  .stage-voices .vz-who b {
+    font-size: 14px;
+  }
+  .stage-voices .vz-tabs {
+    margin-top: 10px;
+  }
+  .stage-voices .vz-tab {
+    font-size: 9.5px;
+    padding: 4px 0 3px;
+  }
+}
+
+@media (max-aspect-ratio: 9/10) and (max-height: 700px) {
+  .stage-voices .vz-q .hud-quote {
+    font-size: clamp(15px, 4.1vw, 20px);
+  }
+  .stage-voices .vz-hint {
+    display: none;
+  }
+}

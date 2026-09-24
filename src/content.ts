@@ -354,8 +354,8 @@ export const MICROCOPY = {
   signalEyebrow: 'Proof no. 1',
   scrollHint: 'Scroll to pull the print',
   audio: 'Audio',
-  audioOn: 'Live',
-  audioOff: 'Muted',
+  audioOn: 'On',
+  audioOff: 'Off',
 }
 
 export const SECURITY = {

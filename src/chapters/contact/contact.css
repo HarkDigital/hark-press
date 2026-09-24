@@ -1,0 +1,286 @@
+/* ------------------------------------------------------------------
+   Airmail (contact). Landscape: the copy is a poster column on the
+   left, the cutting mat + postcard fill the right. Portrait: mat on top,
+   copy stacked beneath. JS toggles .ct-portrait (same test as the 3D fit).
+   ------------------------------------------------------------------ */
+
+.stage-contact .ct-probe {
+  position: absolute;
+  top: var(--safe-top);
+  bottom: var(--safe-bottom);
+  left: var(--gutter);
+  right: var(--gutter);
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.stage-contact .ct-copy {
+  position: absolute;
+  left: var(--gutter);
+  top: var(--safe-top);
+  bottom: var(--safe-bottom);
+  width: min(41vw, 600px);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: clamp(12px, 2.2vh, 28px);
+}
+
+.stage-contact .ct-head {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(8px, 1.6vh, 18px);
+}
+.stage-contact .ct-eyerow {
+  display: flex;
+  align-items: center;
+  gap: 12px 22px;
+  min-height: 28px;
+}
+
+.stage-contact .ct-title {
+  font-size: clamp(3rem, min(10.4vw, 17.5vh), 11rem);
+  line-height: 0.84;
+}
+
+.stage-contact .ct-main {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(12px, 2vh, 22px);
+}
+.stage-contact .ct-body {
+  max-width: 36ch;
+  transform-origin: 0 0;
+}
+
+/* ---- the address: the primary link, set big with a green marker ---- */
+.stage-contact .ct-mailrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 18px;
+}
+.stage-contact .ct-mail {
+  position: relative;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.28em;
+  min-height: 44px;
+  padding: 4px 0;
+  font-family: var(--font-sans);
+  font-weight: 800;
+  font-stretch: 80%;
+  font-size: clamp(27px, min(3.3vw, 6vh), 50px);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.stage-contact .ct-mail-addr {
+  position: relative;
+  padding: 0 0.06em;
+  background: linear-gradient(var(--green), var(--green)) 0 92% / 100% 0.36em no-repeat;
+  transition: background-size 0.22s cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+.stage-contact .ct-mail-at {
+  color: var(--ink);
+}
+.stage-contact .ct-mail-go {
+  font-size: 0.72em;
+  transition: transform 0.2s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.stage-contact .ct-mail:hover .ct-mail-addr,
+.stage-contact .ct-mail:focus-visible .ct-mail-addr {
+  background-size: 100% 0.95em;
+}
+.stage-contact .ct-mail:hover .ct-mail-go,
+.stage-contact .ct-mail:focus-visible .ct-mail-go {
+  transform: translate3d(5px, 0, 0);
+}
+.stage-contact .ct-mail:active .ct-mail-addr {
+  background-color: transparent;
+  background-image: linear-gradient(var(--pink), var(--pink));
+}
+
+.stage-contact .ct-copybtn {
+  padding: 10px 14px;
+  font-size: 11.5px;
+  min-height: 40px;
+}
+.stage-contact .ct-copy-done {
+  display: none;
+}
+.stage-contact .ct-copybtn.is-copied {
+  background: var(--pink);
+}
+.stage-contact .ct-copybtn.is-copied .ct-copy-idle {
+  display: none;
+}
+.stage-contact .ct-copybtn.is-copied .ct-copy-done {
+  display: inline;
+}
+.stage-contact .ct-copybtn.is-copied .ct-copy-done::after {
+  content: ' ✓';
+}
+
+/* ---- elsewhere: the sister concepts + back to top ---- */
+.stage-contact .ct-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 18px;
+  margin: 0;
+}
+.stage-contact .ct-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 30px;
+  padding: 4px 0;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 4px;
+  text-decoration-color: var(--line-strong);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  transition: text-decoration-color 0.15s ease;
+}
+.stage-contact .ct-link:hover,
+.stage-contact .ct-link:focus-visible {
+  text-decoration-color: var(--green);
+  text-decoration-thickness: 3px;
+}
+.stage-contact .ct-ext {
+  font-size: 1.05em;
+}
+
+/* ---- colophon ---- */
+.stage-contact .ct-foot {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  line-height: 1.6;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  max-width: 60ch;
+}
+.stage-contact .ct-nw {
+  white-space: nowrap;
+}
+
+/* ---- reveals: stamped in (drop, squash, settle) ---- */
+.stage-contact .ct-body,
+.stage-contact .ct-mailrow,
+.stage-contact .ct-links,
+.stage-contact .ct-foot {
+  opacity: 0;
+  visibility: hidden;
+  transform: translate3d(0, -8px, 0) scale(1.04);
+  transition:
+    opacity 0.16s ease,
+    transform 0.4s cubic-bezier(0.3, 1.6, 0.5, 1),
+    visibility 0s linear 0.3s;
+}
+.stage-contact .ct-body.is-in,
+.stage-contact .ct-mailrow.is-in,
+.stage-contact .ct-links.is-in,
+.stage-contact .ct-foot.is-in {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition-delay: 0s;
+}
+
+/* ---- END OF PRINT RUN: a pink tag stamped beside the eyebrow ---- */
+.stage-contact .ct-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 5px 9px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: var(--pink);
+  border: 2px solid var(--ink);
+  border-radius: 3px;
+  box-shadow: 3px 3px 0 var(--ink);
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transform: rotate(-4deg) scale(1.5);
+  transition:
+    opacity 0.12s ease,
+    transform 0.34s cubic-bezier(0.3, 1.7, 0.5, 1),
+    visibility 0s linear 0.3s;
+}
+.stage-contact .ct-end.is-in {
+  opacity: 1;
+  visibility: visible;
+  transform: rotate(-4deg);
+  transition-delay: 0s;
+}
+.stage-contact .ct-end-v {
+  padding-left: 8px;
+  border-left: 1.5px solid var(--ink);
+}
+
+/* ---------------- portrait: mat above, copy below ---------------- */
+.stage-contact.ct-portrait .ct-copy {
+  top: auto;
+  right: var(--gutter);
+  width: auto;
+  justify-content: flex-end;
+  gap: clamp(10px, 1.8vh, 20px);
+}
+.stage-contact.ct-portrait .ct-title {
+  font-size: clamp(2.9rem, min(15vw, 8.4vh), 7rem);
+}
+.stage-contact.ct-portrait .ct-title br {
+  display: none;
+}
+.stage-contact.ct-portrait .ct-body {
+  max-width: 46ch;
+}
+.stage-contact.ct-portrait .ct-mail {
+  font-size: clamp(25px, 7.2vw, 46px);
+}
+.stage-contact.ct-portrait .ct-main {
+  gap: clamp(10px, 1.6vh, 18px);
+}
+
+@media (max-width: 520px) {
+  .stage-contact .ct-end {
+    font-size: 10px;
+    padding: 4px 7px;
+  }
+  .stage-contact .ct-end-v {
+    display: none;
+  }
+}
+
+@media (max-height: 700px) {
+  .stage-contact.ct-portrait .ct-body {
+    font-size: 14px;
+    line-height: 1.42;
+  }
+  .stage-contact.ct-portrait .ct-link {
+    min-height: 26px;
+    padding: 2px 0;
+  }
+  .stage-contact .ct-copybtn {
+    min-height: 36px;
+    padding: 8px 12px;
+  }
+}

@@ -119,7 +119,7 @@ const RisoShader = {
       float starve = uGrain * (0.22 * g1 + 0.12 * g2);
       cP *= 1.0 - starve;
       cG *= 1.0 - starve * 0.8;
-      cK *= 1.0 - starve * 0.6;
+      cK *= 1.0 - starve * 0.3;
 
       // paper: warm stock with fibre and a whisper of tooth
       float fib = vnoise(vec2(px.x * 0.02, px.y * 0.35)) * 0.5 + vnoise(px * 0.08) * 0.5;
@@ -128,7 +128,8 @@ const RisoShader = {
       // overprint (multiply), in print order: green, pink, black
       col *= mix(vec3(1.0), uGreen, cG * 0.96);
       col *= mix(vec3(1.0), uPink, cP * 0.94);
-      col *= mix(vec3(1.0), uBlack, cK * 0.97);
+      // key prints dense so WebGL black matches the page's type
+      col *= mix(vec3(1.0), uBlack, cK * 0.995);
 
       col = mix(col, uPaper, clamp(max(uFlash, uFade), 0.0, 1.0));
       gl_FragColor = vec4(col, 1.0);

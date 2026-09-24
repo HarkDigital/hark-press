@@ -1,0 +1,223 @@
+/* Shredder — "Hacked? Breathe." Every selector scoped under .stage-shield. */
+
+.stage-shield {
+  /* pink darkened for small text on paper (≈ 5:1) */
+  --sh-pink-ink: #c4146a;
+}
+
+/* ---------- copy column ---------- */
+
+.stage-shield .sh-copy {
+  position: absolute;
+  top: var(--safe-top);
+  left: var(--gutter);
+  width: calc(100% - 2 * var(--gutter));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.stage-shield.sh-wide .sh-copy {
+  width: auto;
+  max-width: min(46vw, 640px);
+}
+
+.stage-shield .sh-eyebrow {
+  margin: 0 0 clamp(12px, 2vh, 20px);
+}
+.stage-shield .sh-eyebrow::before {
+  opacity: 0;
+  transform: scale(0.4) rotate(-90deg);
+  transition:
+    opacity 0.2s ease,
+    transform 0.4s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.stage-shield .sh-eyebrow.is-on::before {
+  opacity: 1;
+  transform: none;
+}
+
+.stage-shield .sh-title {
+  font-size: clamp(3rem, 8.6vw, 9.4rem);
+  line-height: 0.84;
+  white-space: nowrap;
+}
+
+.stage-shield .sh-slot {
+  display: grid;
+  margin-top: clamp(16px, 3vh, 30px);
+}
+.stage-shield .sh-slot > * {
+  grid-area: 1 / 1;
+  align-self: start;
+}
+.stage-shield .sh-body {
+  max-width: 38ch;
+}
+
+.stage-shield .sh-calm {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: clamp(14px, 2.2vh, 22px);
+}
+.stage-shield .sh-stat-row {
+  display: flex;
+  align-items: flex-end;
+  gap: clamp(14px, 1.6vw, 22px);
+}
+.stage-shield .sh-stat {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-weight: 800;
+  font-stretch: 78%;
+  font-size: clamp(3.6rem, 7vw, 7.4rem);
+  line-height: 0.8;
+  letter-spacing: -0.035em;
+  color: var(--green);
+  text-shadow: 0.04em 0.025em 0 color-mix(in srgb, var(--ink) 85%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+.stage-shield .sh-stat-label {
+  max-width: 24ch;
+  font-size: clamp(14px, 1.05vw, 16px);
+  line-height: 1.4;
+  padding-bottom: 0.2em;
+}
+
+.stage-shield .sh-cta {
+  opacity: 0;
+  transform: translate3d(0, -10px, 0) rotate(-3deg) scale(1.12);
+  pointer-events: none;
+  transition:
+    opacity 0.16s ease,
+    transform 0.42s cubic-bezier(0.3, 1.6, 0.5, 1),
+    box-shadow 0.15s ease;
+}
+.stage-shield .sh-cta.is-in {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+  transition-delay: 0.22s, 0.22s, 0s;
+}
+.stage-shield .sh-cta.is-in:hover,
+.stage-shield .sh-cta.is-in:focus-visible {
+  transform: translate(-2px, -2px);
+  transition-delay: 0s;
+}
+.stage-shield .sh-cta.is-in:active {
+  transform: translate(3px, 3px);
+}
+
+/* ---------- 'Intrusion detected' callout (pinned to the shredder's lamp) ---------- */
+
+.stage-shield .sh-alert .callout-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 9px 4px 8px;
+  margin-top: -3px;
+  color: var(--ink);
+  background: var(--paper-2);
+  border: 1.5px solid var(--ink);
+  box-shadow: 3px 3px 0 var(--pink);
+  font-weight: 500;
+  letter-spacing: 0.12em;
+}
+.stage-shield .sh-alert-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--pink);
+  flex: none;
+  animation: sh-blink 0.5s steps(1, end) infinite;
+}
+.stage-shield .sh-alert .callout-svg path {
+  stroke: var(--ink);
+}
+.stage-shield .sh-alert .callout-dot {
+  border-color: var(--ink);
+}
+
+@keyframes sh-blink {
+  0%,
+  66% {
+    opacity: 1;
+  }
+  67%,
+  100% {
+    opacity: 0.15;
+  }
+}
+
+/* strip counter while the proof re-forms */
+.stage-shield .sh-count .callout-label {
+  display: inline-flex;
+  gap: 10px;
+  padding: 3px 8px;
+  margin-top: -3px;
+  box-shadow: 3px 3px 0 var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.stage-shield .sh-count-k {
+  color: var(--fg-muted);
+}
+.stage-shield .sh-count.is-whole .callout-label {
+  background: var(--green);
+}
+.stage-shield .sh-count.is-whole .sh-count-k {
+  color: var(--ink);
+}
+
+/* measures the shared layout tokens for the camera framing */
+.stage-shield .sh-probe {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  visibility: hidden;
+  padding: var(--safe-top) var(--gutter) var(--safe-bottom) var(--gutter);
+  box-sizing: content-box;
+  pointer-events: none;
+}
+
+/* ---------- narrow (portrait tablets, phones): copy on top, scene below ---------- */
+
+.stage-shield:not(.sh-wide) .sh-title {
+  font-size: clamp(2.7rem, 12.4vw, 6.4rem);
+}
+.stage-shield:not(.sh-wide) .sh-body {
+  max-width: 46ch;
+}
+
+@media (max-width: 560px) {
+  .stage-shield .sh-body,
+  .stage-shield .sh-stat-label {
+    font-size: 14.5px;
+    line-height: 1.45;
+  }
+  .stage-shield .sh-stat {
+    font-size: clamp(3rem, 15vw, 4.2rem);
+  }
+  .stage-shield .sh-slot {
+    margin-top: 14px;
+  }
+  .stage-shield .sh-eyebrow {
+    font-size: 10.5px;
+    letter-spacing: 0.08em;
+  }
+}
+
+@media (max-height: 700px) and (max-width: 560px) {
+  .stage-shield .sh-title {
+    font-size: 2.6rem;
+  }
+  .stage-shield .sh-body,
+  .stage-shield .sh-stat-label {
+    font-size: 13.5px;
+    line-height: 1.4;
+  }
+  .stage-shield .sh-calm {
+    gap: 10px;
+  }
+}

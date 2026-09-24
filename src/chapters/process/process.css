@@ -1,0 +1,380 @@
+/* The Fold — process chapter HUD. Every selector scoped under .stage-process. */
+
+.stage-process .pf {
+  position: absolute;
+  inset: 0;
+}
+
+/* ---- headline */
+.stage-process .pf-head {
+  position: absolute;
+  left: var(--gutter);
+  top: var(--safe-top);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: min(44vw, 640px);
+}
+.stage-process .pf-eyebrow {
+  align-self: flex-start;
+  padding: 5px 9px 5px 7px;
+  background: var(--paper-2);
+  box-shadow: 2px 2px 0 var(--ink);
+  opacity: 0;
+  transform: translate3d(0, -6px, 0);
+  transition:
+    opacity 0.3s ease,
+    transform 0.4s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.stage-process .pf-eyebrow.is-in {
+  opacity: 1;
+  transform: none;
+}
+.stage-process .pf-title {
+  font-size: clamp(2.3rem, 4.5vw, 4.6rem);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1em;
+}
+/* each line is a cut strip of paper pasted onto the mat, a touch askew */
+.stage-process .pf-strip {
+  display: block;
+  padding: 0.1em 0.2em 0.02em 0.16em;
+  background: var(--paper-2);
+  box-shadow: 4px 4px 0 var(--ink);
+  opacity: 0;
+  transform: translate3d(0, -0.2em, 0) rotate(-3deg) scale(1.06);
+  transition:
+    opacity 0.14s ease,
+    transform 0.36s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.stage-process .pf-strip--1 {
+  --tilt: -1.1deg;
+}
+.stage-process .pf-strip--2 {
+  --tilt: 0.8deg;
+  margin-left: 0.3em;
+  transition-delay: 0.08s;
+}
+.stage-process .pf-head.is-in .pf-strip {
+  opacity: 1;
+  transform: rotate(var(--tilt));
+}
+/* the second drum prints pink here: green type would vanish against the green mat */
+.stage-process .pf-title em {
+  color: var(--pink);
+  text-shadow: 0.035em 0.02em 0 color-mix(in srgb, var(--ink) 85%, transparent);
+}
+
+/* HUD copy sits on printed cards laid on the mat */
+.stage-process .pf-steps,
+.stage-process .pf-stats {
+  background: var(--paper-2);
+  border: 2px solid var(--ink);
+  border-radius: 4px;
+  box-shadow: 5px 5px 0 var(--ink);
+  padding: 16px 20px 18px;
+  opacity: 0;
+  visibility: hidden;
+  transform: translate3d(0, -14px, 0) rotate(-1.2deg) scale(1.03);
+  transform-origin: 20% 100%;
+  transition:
+    opacity 0.16s ease,
+    transform 0.34s cubic-bezier(0.3, 1.6, 0.5, 1),
+    visibility 0s linear 0.34s;
+}
+.stage-process .pf-steps.is-in,
+.stage-process .pf-stats.is-in {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition-delay: 0s;
+}
+
+/* ---- instruction cards (bottom-left) */
+.stage-process .pf-steps {
+  position: absolute;
+  left: var(--gutter);
+  bottom: var(--safe-bottom);
+  width: min(34vw, 440px);
+}
+.stage-process .pf-track {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+}
+.stage-process .pf-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: var(--paper-2);
+  padding: 4px 8px 4px 4px;
+  border: 1.5px solid var(--ink);
+  border-radius: 3px;
+  transition:
+    background-color 0.12s steps(2),
+    color 0.12s steps(2),
+    transform 0.2s cubic-bezier(0.3, 1.6, 0.5, 1),
+    box-shadow 0.2s ease;
+}
+.stage-process .pf-chip-n {
+  display: inline-grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  font-size: 10px;
+  line-height: 1;
+}
+.stage-process .pf-chip.is-done {
+  background: var(--ink);
+  color: var(--paper-2);
+}
+.stage-process .pf-chip.is-active {
+  background: var(--green);
+  color: var(--ink);
+  transform: translate(-1px, -2px);
+  box-shadow: 3px 3px 0 var(--ink);
+}
+
+.stage-process .pf-deck {
+  display: grid;
+}
+.stage-process .pf-card {
+  grid-area: 1 / 1;
+  align-self: end;
+}
+.stage-process .pf-slug {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin: 0 0 10px;
+  color: var(--fg);
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+.stage-process .pf-card.is-in .pf-slug {
+  opacity: 1;
+  transition-delay: 0.05s;
+}
+.stage-process .pf-slug-how {
+  color: var(--fg-muted);
+  padding-left: 10px;
+  border-left: 1.5px dashed var(--line-strong);
+}
+.stage-process .pf-name {
+  font-family: var(--font-sans);
+  font-weight: 800;
+  font-stretch: 78%;
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
+  line-height: 0.88;
+  font-size: clamp(2.6rem, 4.8vw, 4.6rem);
+  margin: 0 0 12px;
+  color: var(--fg);
+  text-shadow: 0.04em 0.025em 0 color-mix(in srgb, var(--pink) 85%, transparent);
+}
+.stage-process .pf-body {
+  max-width: 36ch;
+  color: var(--fg);
+}
+
+/* ---- the stats, printed on the wings */
+.stage-process .pf-stats {
+  position: absolute;
+  left: var(--gutter);
+  bottom: var(--safe-bottom);
+  width: min(36vw, 470px);
+  padding-bottom: 8px;
+}
+.stage-process .pf-stats-eyebrow {
+  margin-bottom: 8px;
+}
+.stage-process .pf-stat-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.stage-process .pf-stat {
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  column-gap: 12px;
+  align-items: baseline;
+  padding: 10px 0 12px;
+  border-top: 1.5px dashed transparent;
+  transition: border-color 0.2s steps(2);
+}
+.stage-process .pf-stat.is-in {
+  border-top-color: var(--line-strong);
+}
+.stage-process .pf-stat:first-child {
+  border-top: 0;
+}
+.stage-process .pf-stat-i {
+  grid-row: 1 / span 2;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: var(--fg);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.stage-process .pf-stat.is-in .pf-stat-i {
+  opacity: 1;
+}
+.stage-process .pf-stat-slot {
+  position: relative;
+  justify-self: start;
+}
+/* an empty stamp box until the value is stamped in */
+.stage-process .pf-stat-slot::before {
+  content: '';
+  position: absolute;
+  inset: -2px -6px 2px -6px;
+  border: 1.5px dashed var(--line-strong);
+  border-radius: 3px;
+  transition: opacity 0.1s steps(2);
+}
+.stage-process .pf-stat.is-stamped .pf-stat-slot::before {
+  opacity: 0;
+}
+.stage-process .pf-stat-v {
+  font-family: var(--font-sans);
+  font-weight: 800;
+  font-stretch: 78%;
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
+  line-height: 0.95;
+  font-size: clamp(1.9rem, 3vw, 2.9rem);
+  margin: 0 0 4px;
+}
+.stage-process .pf-stat--0 .pf-stat-v {
+  color: var(--pink);
+  text-shadow: 0.035em 0.02em 0 color-mix(in srgb, var(--ink) 85%, transparent);
+}
+.stage-process .pf-stat--1 .pf-stat-v {
+  color: var(--green);
+  text-shadow: 0.035em 0.02em 0 color-mix(in srgb, var(--ink) 85%, transparent);
+}
+.stage-process .pf-stat--2 .pf-stat-v {
+  color: var(--ink);
+  text-shadow: 0.035em 0.02em 0 color-mix(in srgb, var(--pink) 85%, transparent);
+}
+.stage-process .pf-stat-l {
+  font-family: var(--font-sans);
+  font-size: 14.5px;
+  font-weight: 450;
+  line-height: 1.4;
+  color: var(--fg);
+  margin: 0;
+  max-width: 44ch;
+}
+
+/* ---- portrait / phones: headline on top, cards along the bottom */
+@media (max-aspect-ratio: 4/5), (max-width: 767px) {
+  .stage-process .pf-head {
+    right: var(--gutter);
+    max-width: none;
+    gap: 12px;
+  }
+  .stage-process .pf-title {
+    font-size: clamp(2rem, 8.6vw, 3.4rem);
+  }
+  .stage-process .pf-steps,
+  .stage-process .pf-stats {
+    right: var(--gutter);
+    width: auto;
+    padding: 12px 14px 14px;
+    box-shadow: 4px 4px 0 var(--ink);
+  }
+  .stage-process .pf-track {
+    flex-wrap: nowrap;
+    margin-bottom: 10px;
+  }
+  .stage-process .pf-chip {
+    font-size: 10px;
+    padding: 3px;
+    gap: 5px;
+  }
+  /* numbers only, except the step in hand */
+  .stage-process .pf-chip:not(.is-active) .pf-chip-t {
+    display: none;
+  }
+  .stage-process .pf-chip.is-active {
+    padding-right: 7px;
+  }
+  .stage-process .pf-name {
+    font-size: clamp(2.2rem, 10vw, 3.2rem);
+    margin-bottom: 8px;
+  }
+  .stage-process .pf-body {
+    font-size: 15px;
+    max-width: 42ch;
+  }
+  /* one value column for every row, sized in the value's own em */
+  .stage-process .pf-stat {
+    font-size: clamp(1.4rem, 5.4vw, 1.9rem);
+    grid-template-columns: 22px 4.1em 1fr;
+    column-gap: 10px;
+    padding: 8px 0 9px;
+  }
+  .stage-process .pf-stat-i {
+    grid-row: auto;
+  }
+  .stage-process .pf-stat-v {
+    font-size: 1em;
+    margin: 0;
+    white-space: nowrap;
+  }
+  .stage-process .pf-stat-l {
+    font-size: 13px;
+    line-height: 1.35;
+  }
+}
+
+/* short phones: the chip row goes, the card stays */
+@media (max-width: 767px) and (max-height: 700px) {
+  .stage-process .pf-track {
+    display: none;
+  }
+  .stage-process .pf-body {
+    font-size: 14px;
+  }
+}
+
+/* layout probe: resolves the safe-area tokens for the camera's free band */
+.stage-process .pf-probe {
+  position: absolute;
+  left: 0;
+  top: var(--safe-top);
+  bottom: var(--safe-bottom);
+  width: 0;
+  padding-left: var(--gutter);
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* narrower landscape: the tracker shows numbers, and the step in hand by name */
+@media (min-width: 768px) and (max-width: 1199px) and (min-aspect-ratio: 4/5) {
+  .stage-process .pf-chip:not(.is-active) .pf-chip-t {
+    display: none;
+  }
+  .stage-process .pf-chip {
+    padding: 4px;
+  }
+  .stage-process .pf-chip.is-active {
+    padding-right: 8px;
+  }
+}

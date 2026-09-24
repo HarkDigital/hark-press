@@ -1,1 +1,2320 @@
-/* Persistent chrome, loader, sound toggle, rotate overlay, fallback (.fb-*). Owned by src/ui/*. */
+/* ------------------------------------------------------------------
+   Persistent chrome, loader, rotate gate and the no-WebGL fallback.
+   Owned by src/ui/*. The furniture of a riso print shop: crop marks,
+   registration targets, job slugs, a colour bar, stickers with hard
+   ink shadows, and a pink drum printing a hair off register.
+   Pink and green are only ever grounds under ink type (≥ 5:1), never
+   small text on paper.
+   ------------------------------------------------------------------ */
+
+/* ================================================================ shared */
+
+.sw {
+  display: inline-grid;
+  vertical-align: baseline;
+}
+.sw-card {
+  grid-area: 1 / 1;
+  white-space: nowrap;
+}
+/* the outgoing words lift off the sheet while the new ones stamp down */
+.sw-card.is-out .rise-w > span {
+  transform: translate3d(0.08em, -0.4em, 0) rotate(4deg) scale(0.94);
+  opacity: 0;
+}
+.sw-card.sw-instant .rise-w > span {
+  transition: none !important;
+}
+
+/* the real wordmark, "Hark.Digital": the dot is a drop of green ink (src/ui/mark.ts) */
+.wm {
+  white-space: nowrap;
+}
+.wm-dot {
+  display: inline-block;
+  width: 0.25em;
+  height: 0.25em;
+  margin: 0 0.07em 0 0.085em;
+  overflow: hidden;
+  border-radius: 50%;
+  color: transparent;
+  text-shadow: none;
+  background: var(--green);
+  box-shadow: 0.05em 0.035em 0 color-mix(in srgb, var(--pink) 85%, transparent);
+}
+/* the concept name is a small tag, never part of the company name */
+.wm-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  white-space: nowrap;
+}
+.wm-tag b {
+  font-weight: 400;
+}
+/* "Press" is a green chip with ink type (9:1), a hair off register */
+.wm-tag em {
+  font-style: normal;
+  color: var(--ink);
+  text-shadow: none;
+  background: var(--green);
+  padding: 0.22em 0.42em 0.18em;
+  border-radius: 2px;
+  box-shadow: 1.5px 1px 0 color-mix(in srgb, var(--pink) 90%, transparent);
+}
+
+/* paper texture: fibre + tooth, for the full-screen sheets (loader, rotate card, menu) */
+.ld,
+.rot,
+.ch-menu-sheet {
+  background-color: var(--paper);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.55 .9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .2 0 0 0 0 .18 0 0 0 0 .15 .3 0 0 0 -.135'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 240px 240px;
+}
+
+/* ================================================================ chrome */
+
+.chrome {
+  --ch-top: calc(env(safe-area-inset-top, 0px) + clamp(14px, 2.5vh, 24px));
+  --ch-bot: calc(env(safe-area-inset-bottom, 0px) + clamp(12px, 2.3vh, 22px));
+  /* the trim: crop marks sit this far in from each edge */
+  --crop: clamp(10px, 1.25vw, 18px);
+  --ch-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ch-spring: cubic-bezier(0.3, 1.6, 0.5, 1);
+  --ch-fg: var(--ink);
+  --ch-muted: rgba(27, 27, 31, 0.76);
+  --ch-ghost: color-mix(in srgb, var(--pink) 85%, transparent);
+  /* a print knockout: the paper is kept clear in a tight trap around small
+     type (plus a whisper of soft edge), so it reads over any halftone */
+  --ch-kn: var(--paper);
+  --ch-halo:
+    1.5px 0 0 var(--ch-kn), -1.5px 0 0 var(--ch-kn), 0 1.5px 0 var(--ch-kn), 0 -1.5px 0 var(--ch-kn),
+    1.1px 1.1px 0 var(--ch-kn), -1.1px -1.1px 0 var(--ch-kn), 1.1px -1.1px 0 var(--ch-kn), -1.1px 1.1px 0 var(--ch-kn),
+    0 0 6px color-mix(in srgb, var(--ch-kn) 75%, transparent);
+  position: absolute;
+  inset: 0;
+  color: var(--ch-fg);
+  font-family: var(--font-sans);
+  transition: color 0.3s ease;
+}
+/* over a stage printed on solid ink, the chrome prints in paper */
+.chrome.is-ink {
+  --ch-fg: var(--paper-2);
+  --ch-muted: rgba(251, 248, 242, 0.86);
+  --ch-ghost: color-mix(in srgb, var(--green) 85%, transparent);
+  --ch-kn: var(--ink);
+}
+/* at the peak of a cut the sheet is solid green: ink type reads on it (9:1), no knockout */
+.chrome.is-flood {
+  --ch-halo: 0 0 0 transparent;
+}
+
+:where(.chrome) button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+:where(.chrome) a {
+  -webkit-tap-highlight-color: transparent;
+}
+.chrome :focus-visible {
+  outline: 3px solid var(--ch-fg);
+  outline-offset: 3px;
+}
+.chrome .ch-menu :focus-visible {
+  outline-color: var(--ink);
+}
+
+/* --------------------------------------------------------- trim + slugs */
+
+.ch-marks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  color: var(--ch-fg);
+  transition: color 0.3s ease;
+}
+.ch-crop {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+.ch-crop--tl,
+.ch-crop--tr {
+  top: calc(env(safe-area-inset-top, 0px) + var(--crop));
+}
+.ch-crop--bl,
+.ch-crop--br {
+  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--crop));
+}
+.ch-crop--tl,
+.ch-crop--bl {
+  left: calc(env(safe-area-inset-left, 0px) + var(--crop));
+}
+.ch-crop--tr,
+.ch-crop--br {
+  right: calc(env(safe-area-inset-right, 0px) + var(--crop));
+}
+/* each mark: two hairlines running out from the trim corner, with a small gap */
+.ch-crop::before,
+.ch-crop::after {
+  content: '';
+  position: absolute;
+  background: currentColor;
+}
+.ch-crop::before {
+  top: -0.5px;
+  width: calc(var(--crop) - 4px);
+  height: 1px;
+}
+.ch-crop::after {
+  left: -0.5px;
+  width: 1px;
+  height: calc(var(--crop) - 4px);
+}
+.ch-crop--tl::before,
+.ch-crop--bl::before {
+  right: 4px;
+}
+.ch-crop--tr::before,
+.ch-crop--br::before {
+  left: 4px;
+}
+.ch-crop--tl::after,
+.ch-crop--tr::after {
+  bottom: 4px;
+}
+.ch-crop--bl::after,
+.ch-crop--br::after {
+  top: 4px;
+}
+
+.ch-reg {
+  position: absolute;
+  display: none;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  overflow: visible;
+  filter: drop-shadow(1px 0.8px 0 var(--ch-ghost));
+}
+.ch-reg--t {
+  top: calc(env(safe-area-inset-top, 0px) + var(--crop) - 8px);
+  left: calc(50% - 8px);
+}
+.ch-reg--b {
+  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--crop) - 8px);
+  left: calc(50% - 8px);
+}
+.ch-reg--l {
+  top: calc(50% - 8px);
+  left: calc(env(safe-area-inset-left, 0px) + var(--crop) - 8px);
+}
+.ch-reg--r {
+  top: calc(50% - 8px);
+  right: calc(env(safe-area-inset-right, 0px) + var(--crop) - 8px);
+}
+@media (min-width: 1024px) and (min-height: 600px) {
+  .ch-reg {
+    display: block;
+  }
+}
+
+/* the job slug, in the waste margin under the trim */
+.ch-slug {
+  position: absolute;
+  display: none;
+  right: calc(50% + 16px);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--crop) - 5px);
+  margin: 0;
+  font: 500 10px/1 var(--font-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--ch-fg);
+  text-shadow: var(--ch-halo);
+}
+.ch-slug b {
+  font-weight: 500;
+  margin: 0 0.35em;
+}
+@media (min-width: 1180px) and (min-height: 640px) {
+  .ch-slug {
+    display: block;
+  }
+}
+
+/* ---------------------------------------------------------------- reveal */
+
+/* keyframes, not transitions, so the stamp never fights hover transitions */
+.chrome:not(.is-in) :is(.ch-top, .ch-bottom) > *,
+.chrome:not(.is-in) .ch-marks {
+  opacity: 0;
+}
+.is-in .ch-top > *,
+.is-in .ch-bottom > * {
+  animation: ch-stamp 0.5s var(--ch-spring) backwards;
+}
+.is-in .ch-top > :nth-child(n + 2) {
+  animation-delay: 0.08s;
+}
+.is-in .ch-bottom > :first-child {
+  animation-delay: 0.16s;
+}
+.is-in .ch-bottom > :nth-child(2) {
+  animation-delay: 0.22s;
+}
+.is-in .ch-marks {
+  animation: ch-fade 0.6s ease backwards;
+}
+@keyframes ch-stamp {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -9px, 0) scale(1.08) rotate(-1.5deg);
+  }
+  45% {
+    opacity: 1;
+  }
+}
+@keyframes ch-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+/* ------------------------------------------------------------------- top */
+
+.ch-top {
+  position: absolute;
+  top: var(--ch-top);
+  left: var(--gutter);
+  right: var(--gutter);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.ch-brand {
+  /* a nameplate label: always ink on paper, whatever the sheet behind it */
+  --ch-fg: var(--ink);
+  --ch-ghost: color-mix(in srgb, var(--pink) 85%, transparent);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 13px 6px 7px;
+  color: var(--ink);
+  text-decoration: none;
+  background: var(--paper-2);
+  border: 1.5px solid var(--ink);
+  border-radius: 3px;
+  box-shadow: 2px 2px 0 var(--ink);
+  transition:
+    transform 0.18s var(--ch-spring),
+    box-shadow 0.18s ease;
+}
+.is-ink .ch-top .ch-brand {
+  box-shadow: 2px 2px 0 var(--paper-2);
+}
+.ch-top .ch-brand:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 var(--ink);
+}
+.ch-mark {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  transition: transform 0.28s var(--ch-spring);
+}
+.ch-mark-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(1.5px 1px 0 var(--ch-ghost));
+  transition: filter 0.28s var(--ch-spring);
+}
+.ch-mark-svg .mk-loop {
+  fill: currentColor;
+}
+.ch-mark-svg .mk-diamond {
+  fill: var(--green);
+}
+/* the mark is a rubber stamp: press it and the pink drum slips */
+.ch-brand:hover .ch-mark {
+  transform: scale(0.9) rotate(-5deg);
+}
+.ch-brand:hover .ch-mark-svg {
+  filter: drop-shadow(3px 2px 0 var(--ch-ghost));
+}
+.ch-brand:active .ch-mark {
+  transform: scale(0.82) rotate(-5deg);
+}
+.ch-brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.ch-word {
+  font-weight: 800;
+  font-stretch: 86%;
+  font-size: 20px;
+  line-height: 0.9;
+  letter-spacing: -0.012em;
+  text-shadow: 0.05em 0.035em 0 var(--ch-ghost);
+}
+.ch-sub {
+  font: 500 10px/1 var(--font-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* desktop nav */
+.ch-nav {
+  display: flex;
+  align-items: center;
+  gap: clamp(10px, 1.4vw, 20px);
+}
+/* the links sit on a strip of label tape */
+.ch-links {
+  display: flex;
+  gap: 2px;
+  margin: 0;
+  padding: 3px;
+  list-style: none;
+  background: var(--paper-2);
+  border: 1.5px solid var(--ink);
+  border-radius: 3px;
+  box-shadow: 2px 2px 0 var(--ink);
+}
+.is-ink .ch-links {
+  box-shadow: 2px 2px 0 var(--paper-2);
+}
+.ch-link {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 11px;
+  font: 500 12px/1 var(--font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--ink);
+}
+/* a riso highlight prints under the word: pink on hover, green for "you are here" */
+.ch-link::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border-radius: 1px;
+  background: var(--pink);
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  transition: transform 0.3s var(--ch-spring);
+}
+.ch-link:hover::before,
+.ch-link:focus-visible::before,
+.ch-link.is-active::before {
+  transform: none;
+}
+.ch-link.is-active::before {
+  background: var(--green);
+}
+.chrome .ch-link:focus-visible {
+  outline-offset: 5px;
+}
+
+/* the "Start a project" sticker */
+.ch-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  height: 40px;
+  padding: 0 13px 0 16px;
+  font: 500 12px/1 var(--font-mono);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  text-decoration: none;
+  white-space: nowrap;
+  color: var(--ink);
+  background: var(--green);
+  border: 2px solid var(--ink);
+  border-radius: 4px;
+  box-shadow: 3px 3px 0 var(--ink);
+  transform: rotate(-1.5deg);
+  transition:
+    transform 0.2s var(--ch-spring),
+    box-shadow 0.2s ease;
+}
+.ch-cta:hover,
+.ch-cta:focus-visible {
+  transform: rotate(-1.5deg) translate(-1px, -2px);
+  box-shadow: 5px 5px 0 var(--ink);
+}
+.ch-cta:active {
+  transform: rotate(-1.5deg) translate(2px, 2px);
+  box-shadow: 1px 1px 0 var(--ink);
+}
+.is-ink .ch-cta {
+  box-shadow: 3px 3px 0 var(--paper-2);
+}
+.ch-arrow {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: square;
+  transition: transform 0.2s var(--ch-spring);
+}
+.ch-cta:hover .ch-arrow,
+.ch-menu-cta:hover .ch-arrow {
+  transform: translateX(3px);
+}
+
+/* mobile menu button: a paper sticker */
+.ch-menu-btn {
+  display: none;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  padding: 0 12px 0 14px;
+  font: 500 12px/1 var(--font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+:where(.chrome) .ch-menu-btn {
+  color: var(--ink);
+  background: var(--paper-2);
+  border: 2px solid var(--ink);
+  border-radius: 4px;
+  box-shadow: 3px 3px 0 var(--ink);
+  transition:
+    transform 0.18s var(--ch-spring),
+    box-shadow 0.18s ease;
+}
+.ch-menu-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 var(--ink);
+}
+.is-ink .ch-top .ch-menu-btn {
+  box-shadow: 3px 3px 0 var(--paper-2);
+}
+.ch-menu-icon {
+  position: relative;
+  width: 16px;
+  height: 10px;
+}
+.ch-menu-icon i {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: currentColor;
+  transition: transform 0.3s var(--ch-spring);
+}
+.ch-menu-icon i:first-child {
+  top: 0;
+}
+.ch-menu-icon i:last-child {
+  bottom: 0;
+}
+.ch-menu-close .ch-menu-icon i:first-child {
+  transform: translateY(4px) rotate(45deg);
+}
+.ch-menu-close .ch-menu-icon i:last-child {
+  transform: translateY(-4px) rotate(-45deg);
+}
+
+/* --------------------------------------------------------------- the menu */
+
+/* a contents sheet that feeds in from the top of the press */
+.ch-menu {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  overflow: hidden;
+  pointer-events: none;
+}
+.ch-menu[hidden] {
+  display: none;
+}
+.ch-menu-sheet {
+  position: absolute;
+  /* taller than the screen so the overshoot never shows a gap at the top */
+  top: -64px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding-top: 64px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  pointer-events: auto;
+  color: var(--ink);
+  border-bottom: 2px solid var(--ink);
+  transform: translate3d(0, -102%, 0);
+  transition: transform 0.34s cubic-bezier(0.55, 0, 0.8, 0.2);
+}
+.is-menu .ch-menu-sheet {
+  transform: none;
+  transition: transform 0.58s cubic-bezier(0.2, 1.22, 0.36, 1);
+}
+.ch-menu-top {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--ch-top) var(--gutter) 0;
+}
+.ch-menu-brand {
+  pointer-events: none;
+  --ch-fg: var(--ink);
+  --ch-halo: 0 0 0 transparent;
+}
+.chrome .ch-menu-close {
+  display: inline-flex;
+}
+.ch-menu-body {
+  position: relative;
+  z-index: 1;
+  padding: clamp(18px, 4vh, 44px) var(--gutter) calc(var(--ch-bot) + 16px);
+}
+.ch-menu-eyebrow {
+  color: var(--ink);
+}
+.ch-menu-list {
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 2px solid var(--ink);
+}
+.ch-menu-list li {
+  border-bottom: 1.5px dashed rgba(27, 27, 31, 0.5);
+}
+.ch-ml {
+  display: grid;
+  grid-template-columns: 2.1rem minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 10px;
+  min-height: 48px;
+  padding: 7px 0 5px;
+  color: var(--ink);
+  text-decoration: none;
+}
+.chrome .ch-ml:focus-visible {
+  outline-offset: -3px;
+}
+.ch-ml-n {
+  font: 500 11px/1 var(--font-mono);
+  letter-spacing: 0.08em;
+}
+.ch-ml-name {
+  position: relative;
+  isolation: isolate;
+  justify-self: start;
+  padding: 0 0.06em;
+  font-weight: 800;
+  font-stretch: 78%;
+  font-size: clamp(32px, 9vw, 60px);
+  line-height: 0.88;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  text-shadow: 0.04em 0.025em 0 color-mix(in srgb, var(--pink) 85%, transparent);
+}
+.ch-ml-name::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 0.08em -0.02em 0.02em;
+  background: var(--pink);
+  transform: scaleX(0) rotate(-0.8deg);
+  transform-origin: 0 50%;
+  transition: transform 0.32s var(--ch-spring);
+}
+.ch-ml:hover .ch-ml-name::before,
+.ch-ml:focus-visible .ch-ml-name::before,
+.ch-ml.is-now .ch-ml-name::before {
+  transform: scaleX(1) rotate(-0.8deg);
+}
+.ch-ml.is-now .ch-ml-name::before {
+  background: var(--green);
+}
+.ch-ml:hover .ch-ml-name,
+.ch-ml:focus-visible .ch-ml-name,
+.ch-ml.is-now .ch-ml-name {
+  text-shadow: 0.04em 0.025em 0 rgba(27, 27, 31, 0.25);
+}
+.ch-ml-tag {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+  font: 500 11px/1.2 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: right;
+  color: rgba(27, 27, 31, 0.76);
+}
+.ch-ml-now {
+  display: none;
+  padding: 3px 5px 2px;
+  color: var(--ink);
+  border: 1.5px solid var(--ink);
+  border-radius: 2px;
+  transform: rotate(-3deg);
+}
+.ch-ml.is-now .ch-ml-now {
+  display: inline-block;
+}
+/* the lines stamp down one after another as the sheet lands */
+.is-menu .ch-menu-list li,
+.is-menu .ch-menu-foot,
+.is-menu .ch-menu-eyebrow {
+  animation: ch-stamp 0.46s var(--ch-spring) backwards;
+  animation-delay: calc(0.18s + var(--i, 0) * 0.045s);
+}
+.is-menu .ch-menu-eyebrow {
+  --i: -1;
+}
+.is-menu .ch-menu-foot {
+  --i: 8;
+}
+.ch-menu-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 22px;
+  margin-top: clamp(20px, 3.4vh, 32px);
+}
+.ch-menu-cta .ch-arrow {
+  margin-left: 2px;
+}
+.ch-menu-mail {
+  font: 500 12px/1 var(--font-mono);
+  letter-spacing: 0.06em;
+  color: var(--ink);
+  text-underline-offset: 4px;
+  text-decoration-thickness: 1.5px;
+  padding: 8px 0;
+}
+.ch-menu-slug {
+  margin: clamp(18px, 3vh, 28px) 0 0;
+  font: 500 10px/1.4 var(--font-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(27, 27, 31, 0.76);
+}
+.ch-menu-slug b {
+  font-weight: 500;
+  margin: 0 0.35em;
+}
+/* a pink halftone swatch bleeding off the right edge of the sheet */
+.ch-menu-dots {
+  position: absolute;
+  z-index: 0;
+  top: 64px;
+  right: -12vmin;
+  width: 62vmin;
+  height: 62vmin;
+  pointer-events: none;
+  background: radial-gradient(circle, var(--pink) 0 42%, transparent 46%) 0 0 / 9px 9px;
+  -webkit-mask-image: radial-gradient(closest-side, #000 0 35%, rgba(0, 0, 0, 0.5) 60%, transparent 100%);
+  mask-image: radial-gradient(closest-side, #000 0 35%, rgba(0, 0, 0, 0.5) 60%, transparent 100%);
+  mix-blend-mode: multiply;
+  opacity: 0.55;
+}
+
+/* ----------------------------------------------------------------- bottom */
+
+.ch-bottom {
+  position: absolute;
+  left: var(--gutter);
+  right: var(--gutter);
+  bottom: var(--ch-bot);
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+/* AUDIO: a paper sticker holding a slide switch and the three drums */
+.ch-audio {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 5px 11px 5px 6px;
+  font: 500 11.5px/1 var(--font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+:where(.chrome) .ch-audio {
+  color: var(--ink);
+  background: var(--paper-2);
+  border: 1.5px solid var(--ink);
+  border-radius: 3px;
+  box-shadow: 2px 2px 0 var(--ink);
+  transition:
+    transform 0.18s var(--ch-spring),
+    box-shadow 0.18s ease;
+}
+.ch-audio:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 var(--ink);
+}
+.ch-audio:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 var(--ink);
+}
+.is-ink .ch-audio {
+  box-shadow: 2px 2px 0 var(--paper-2);
+}
+.ch-switch {
+  position: relative;
+  flex: none;
+  width: 40px;
+  height: 24px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--paper);
+  transition: background-color 0.2s ease;
+}
+.ch-switch i {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--ink);
+  transition: transform 0.34s var(--ch-spring);
+}
+.is-live .ch-switch {
+  background: var(--green);
+}
+.is-live .ch-switch i {
+  transform: translateX(16px);
+}
+.ch-audio-state {
+  display: inline-block;
+  min-width: 2.3em;
+}
+.ch-drums {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 1px;
+}
+.ch-drum {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid var(--ink);
+  transform: translate3d(0, calc(var(--pulse, 0) * -3px), 0) scale(calc(1 + var(--pulse, 0) * 0.3));
+  transition: background-color 0.25s ease;
+}
+.is-live .ch-drum--p {
+  background: var(--pink);
+}
+.is-live .ch-drum--g {
+  background: var(--green);
+}
+.is-live .ch-drum--k {
+  background: var(--ink);
+}
+
+/* PRINT RUN: a job docket with the readout and the colour bar */
+.ch-run {
+  --ch-fg: var(--ink);
+  --ch-muted: rgba(27, 27, 31, 0.74);
+  --ch-ghost: color-mix(in srgb, var(--pink) 85%, transparent);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  min-width: 0;
+  padding: 8px 10px 3px;
+  color: var(--ink);
+  background: var(--paper-2);
+  border: 1.5px solid var(--ink);
+  border-radius: 3px;
+  box-shadow: 2px 2px 0 var(--ink);
+}
+.is-ink .ch-run {
+  box-shadow: 2px 2px 0 var(--paper-2);
+}
+.ch-readout {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 7px;
+  margin: 0;
+  font: 500 11.5px/1 var(--font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--ink);
+}
+.ch-key {
+  padding: 2px 0;
+  transition:
+    background-color 0.15s ease,
+    padding 0.15s ease;
+}
+.is-cue .ch-key {
+  padding: 2px 5px;
+  background: var(--pink);
+}
+/* the numbering machine */
+.ch-num {
+  font-family: var(--font-sans);
+  font-weight: 800;
+  font-stretch: 78%;
+  font-size: 25px;
+  line-height: 0.76;
+  letter-spacing: -0.01em;
+  text-shadow: 0.05em 0.035em 0 var(--ch-ghost);
+}
+.ch-of,
+.ch-plain {
+  color: var(--ch-muted);
+}
+.ch-names {
+  display: inline-flex;
+  gap: 0.6em;
+}
+
+.ch-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: clamp(280px, 24vw, 340px);
+}
+.ch-bar-reg {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: var(--ch-fg);
+  stroke-width: 1.8;
+  overflow: visible;
+}
+.ch-segs {
+  flex: 1;
+  display: flex;
+  gap: 3px;
+  min-width: 0;
+}
+.ch-seg {
+  flex-basis: 0;
+  min-width: 24px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  border-radius: 2px;
+}
+.ch-seg[data-ink='k'] {
+  --c: var(--ink);
+}
+.ch-seg[data-ink='p'] {
+  --c: var(--pink);
+}
+.ch-seg[data-ink='g'] {
+  --c: var(--green);
+}
+/* each patch: a light halftone tint of its drum until that sheet is printed */
+.ch-patch {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 12px;
+  overflow: hidden;
+  border: 1.5px solid var(--ch-fg);
+  background-color: var(--paper-2);
+  background-image: radial-gradient(circle, var(--c) 0 30%, transparent 36%);
+  background-size: 4px 4px;
+  transition:
+    transform 0.22s var(--ch-spring),
+    height 0.22s var(--ch-spring),
+    box-shadow 0.22s ease;
+}
+.ch-patch b {
+  position: absolute;
+  inset: 0;
+  background: var(--c);
+  transform-origin: 0 50%;
+  transform: scaleX(var(--f, 0));
+}
+.ch-seg.is-past .ch-patch b {
+  transform: none;
+}
+.ch-seg:not(.is-active):not(.is-past) .ch-patch b {
+  transform: scaleX(0);
+}
+.ch-seg.is-active .ch-patch {
+  height: 16px;
+}
+.ch-seg:hover .ch-patch,
+.ch-seg:focus-visible .ch-patch {
+  transform: translateY(-3px);
+  box-shadow: 0 3px 0 var(--ch-fg);
+}
+.chrome .ch-seg:focus-visible {
+  outline-offset: 1px;
+}
+/* a new sheet: its patch takes the impression */
+.is-cut .ch-seg.is-active .ch-patch {
+  animation: ch-impress 0.42s var(--ch-spring);
+}
+@keyframes ch-impress {
+  0% {
+    transform: scale(1.25, 1.7);
+  }
+}
+
+/* ------------------------------------------------------- responsive chrome */
+
+@media (max-width: 1100px) {
+  .ch-bar {
+    width: 250px;
+  }
+}
+
+/* ≤ 820px the brand + full nav no longer sit comfortably side by side */
+@media (max-width: 820px) {
+  .ch-nav {
+    display: none;
+  }
+  .chrome .ch-top .ch-menu-btn {
+    display: inline-flex;
+  }
+}
+
+/* phones: no colour bar; the readout folds onto two lines */
+@media (max-width: 640px) {
+  .ch-bar {
+    display: none;
+  }
+  .ch-run {
+    padding: 7px 10px 7px;
+  }
+  .ch-readout {
+    flex-wrap: wrap;
+    row-gap: 6px;
+    max-width: 58vw;
+  }
+  .ch-dash {
+    display: none;
+  }
+  .ch-names {
+    flex-basis: 100%;
+    justify-content: flex-end;
+  }
+  .ch-num {
+    font-size: 22px;
+  }
+  .ch-word {
+    font-size: 18px;
+  }
+  .ch-mark {
+    width: 28px;
+    height: 28px;
+  }
+  .ch-brand {
+    padding: 5px 11px 5px 6px;
+    gap: 9px;
+  }
+}
+@media (max-width: 420px) {
+  .ch-drums {
+    display: none;
+  }
+  .ch-audio {
+    gap: 9px;
+  }
+  .ch-readout,
+  .ch-audio {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+  }
+}
+
+/* ============================================================== loader */
+
+.ld {
+  --ch-top: calc(env(safe-area-inset-top, 0px) + clamp(14px, 2.5vh, 24px));
+  --ch-bot: calc(env(safe-area-inset-bottom, 0px) + clamp(12px, 2.3vh, 22px));
+  --crop: clamp(14px, 2.2vmin, 28px);
+  --mk: min(56vw, 42vh, 380px);
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+.ld-flood {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* crop marks + registration targets draw in at the edges of the sheet */
+.ld-marks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.ld-crop {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+.ld-crop--tl,
+.ld-crop--tr {
+  top: calc(env(safe-area-inset-top, 0px) + var(--crop));
+}
+.ld-crop--bl,
+.ld-crop--br {
+  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--crop));
+}
+.ld-crop--tl,
+.ld-crop--bl {
+  left: calc(env(safe-area-inset-left, 0px) + var(--crop));
+}
+.ld-crop--tr,
+.ld-crop--br {
+  right: calc(env(safe-area-inset-right, 0px) + var(--crop));
+}
+.ld-crop::before,
+.ld-crop::after {
+  content: '';
+  position: absolute;
+  background: var(--ink);
+  animation: ld-draw 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) 0.05s backwards;
+}
+.ld-crop::before {
+  top: -0.5px;
+  width: calc(var(--crop) - 5px);
+  height: 1px;
+}
+.ld-crop::after {
+  left: -0.5px;
+  width: 1px;
+  height: calc(var(--crop) - 5px);
+}
+.ld-crop--tl::before,
+.ld-crop--bl::before {
+  right: 5px;
+  transform-origin: 100% 50%;
+}
+.ld-crop--tr::before,
+.ld-crop--br::before {
+  left: 5px;
+  transform-origin: 0 50%;
+}
+.ld-crop--tl::after,
+.ld-crop--tr::after {
+  bottom: 5px;
+  transform-origin: 50% 100%;
+}
+.ld-crop--bl::after,
+.ld-crop--br::after {
+  top: 5px;
+  transform-origin: 50% 0;
+}
+.ld-crop::before {
+  --s: scaleX(0);
+}
+.ld-crop::after {
+  --s: scaleY(0);
+}
+@keyframes ld-draw {
+  from {
+    transform: var(--s);
+  }
+}
+.ld-reg {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.3;
+  overflow: visible;
+}
+.ld-reg circle,
+.ld-reg path,
+.ld-bar-reg circle,
+.ld-bar-reg path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: ld-stroke 0.7s cubic-bezier(0.3, 0.7, 0.2, 1) 0.15s forwards;
+}
+.ld-reg path,
+.ld-bar-reg path {
+  animation-delay: 0.3s;
+}
+@keyframes ld-stroke {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.ld-reg--t {
+  top: calc(env(safe-area-inset-top, 0px) + var(--crop) - 11px);
+  left: calc(50% - 11px);
+}
+.ld-reg--b {
+  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--crop) - 11px);
+  left: calc(50% - 11px);
+}
+.ld-reg--l {
+  top: calc(50% - 11px);
+  left: calc(env(safe-area-inset-left, 0px) + var(--crop) - 11px);
+}
+.ld-reg--r {
+  top: calc(50% - 11px);
+  right: calc(env(safe-area-inset-right, 0px) + var(--crop) - 11px);
+}
+
+/* the same lockup, metrics and spot as the chrome brand */
+.ld-brand {
+  position: absolute;
+  top: var(--ch-top);
+  left: var(--gutter);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 13px 6px 7px;
+  background: var(--paper-2);
+  border: 1.5px solid var(--ink);
+  border-radius: 3px;
+  box-shadow: 2px 2px 0 var(--ink);
+  animation: ld-in 0.5s cubic-bezier(0.3, 1.6, 0.5, 1) 0.1s backwards;
+}
+.ld-brand-mark {
+  width: 32px;
+  height: 32px;
+}
+.ld-brand-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(1.6px 1.1px 0 color-mix(in srgb, var(--pink) 85%, transparent));
+}
+.ld-brand-svg .mk-loop {
+  fill: var(--ink);
+}
+.ld-brand-svg .mk-diamond {
+  fill: var(--green);
+}
+.ld-brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.ld-word {
+  font-weight: 800;
+  font-stretch: 86%;
+  font-size: 20px;
+  line-height: 0.9;
+  letter-spacing: -0.012em;
+  text-shadow: 0.05em 0.035em 0 color-mix(in srgb, var(--pink) 85%, transparent);
+}
+.ld-sub {
+  font: 500 10px/1 var(--font-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+@keyframes ld-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -8px, 0) scale(1.06);
+  }
+}
+
+/* the job ticket */
+.ld-ticket {
+  position: absolute;
+  top: calc(var(--ch-top) + 6px);
+  right: var(--gutter);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px 0.6em;
+  margin: 0;
+  padding: 7px 10px 6px;
+  font: 500 11px/1.2 var(--font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: var(--paper-2);
+  border: 1.5px dashed var(--ink);
+  border-radius: 2px;
+  transform: rotate(0.8deg);
+  animation: ld-in 0.5s cubic-bezier(0.3, 1.6, 0.5, 1) 0.22s backwards;
+}
+.ld-ticket b {
+  font-weight: 500;
+}
+
+/* the sheet: the mark, the colour bar and the drums */
+.ld-center {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(16px, 3.2vh, 30px);
+  transform: translate(-50%, -54%);
+}
+.ld-print {
+  position: relative;
+  width: var(--mk);
+  height: var(--mk);
+  /* 1em = a tenth of the mark: the passes are offset in these units */
+  font-size: calc(var(--mk) / 10);
+}
+.ld-pass {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  mix-blend-mode: multiply;
+  /* the roller lays ink from the top of the pass down */
+  clip-path: inset(-4% -4% calc((1 - var(--w, 0)) * 108% - 4%) -4%);
+}
+.ld-pass--p {
+  fill: var(--pink);
+}
+.ld-pass--g path {
+  fill: var(--green);
+}
+.ld-pass--k path {
+  fill: var(--ink);
+}
+/* the drum: a flat ink roller riding the wet edge of the pass */
+.ld-roller {
+  position: absolute;
+  left: -14%;
+  right: -14%;
+  top: calc(var(--y, 0) * 100%);
+  height: 0;
+  opacity: 0;
+}
+.ld-roller.is-on {
+  opacity: 1;
+}
+.ld-roller > i {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -6px;
+  height: 12px;
+  border: 1.5px solid var(--ink);
+  border-radius: 6px;
+  background: var(--ri, var(--ink));
+  box-shadow: 0 2px 0 var(--ink);
+}
+.ld-roller[data-ink='p'] {
+  --ri: var(--pink);
+}
+.ld-roller[data-ink='g'] {
+  --ri: var(--green);
+}
+.ld-roller[data-ink='k'] {
+  --ri: var(--ink);
+}
+/* at 100 the sheet takes the impression (on twos) */
+.ld[data-phase='register'] .ld-print {
+  animation: ld-impress 0.42s step-end;
+}
+@keyframes ld-impress {
+  0% {
+    transform: none;
+  }
+  20% {
+    transform: scale(1.04, 0.96);
+  }
+  40% {
+    transform: scale(0.985, 1.015);
+  }
+  60%,
+  100% {
+    transform: none;
+  }
+}
+
+/* colour bar */
+.ld-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ld-bar-reg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.6;
+  overflow: visible;
+}
+.ld-patches {
+  display: flex;
+  gap: 3px;
+}
+.ld-patch {
+  position: relative;
+  width: clamp(14px, 2vw, 22px);
+  height: clamp(14px, 1.8vw, 20px);
+  border: 1.5px solid var(--ink);
+  background: var(--paper-2);
+}
+.ld-patch--p {
+  --c: var(--pink);
+}
+.ld-patch--g {
+  --c: var(--green);
+}
+.ld-patch--k {
+  --c: var(--ink);
+}
+.ld-patch::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle, var(--c) 0 calc(var(--t) * 88%), transparent calc(var(--t) * 88% + 10%)) 0 0 / 4px
+    4px;
+  opacity: 0;
+}
+.ld-patch.is-on::before {
+  opacity: 1;
+  animation: ld-stamp 0.33s step-end;
+}
+@keyframes ld-stamp {
+  0% {
+    opacity: 0;
+    transform: scale(1.8) rotate(-12deg);
+  }
+  25% {
+    opacity: 1;
+    transform: scale(0.84) rotate(3deg);
+  }
+  50% {
+    transform: scale(1.06);
+  }
+  75%,
+  100% {
+    transform: none;
+  }
+}
+
+/* which drum is running */
+.ld-drums {
+  display: flex;
+  gap: 16px;
+  margin: 0;
+  font: 500 10.5px/1 var(--font-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.ld-drum {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: rgba(27, 27, 31, 0.76);
+}
+.ld-drum i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid var(--ink);
+}
+.ld-drum.is-on,
+.ld-drum.is-done {
+  color: var(--ink);
+}
+.ld-drum.is-on i,
+.ld-drum.is-done i {
+  background: var(--c);
+}
+.ld-drum.is-on i {
+  animation: ld-spin 0.34s step-end infinite;
+}
+.ld-drum--p {
+  --c: var(--pink);
+}
+.ld-drum--g {
+  --c: var(--green);
+}
+.ld-drum--k {
+  --c: var(--ink);
+}
+@keyframes ld-spin {
+  0% {
+    transform: none;
+  }
+  50% {
+    transform: translateY(-2px) scale(1.25);
+  }
+}
+
+/* status slug + counter */
+.ld-status {
+  position: absolute;
+  left: var(--gutter);
+  bottom: var(--ch-bot);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  font: 500 11.5px/1 var(--font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.ld-status-k {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--ink);
+}
+.ld-status-k::before {
+  content: '';
+  width: 12px;
+  height: 12px;
+  flex: none;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  background:
+    linear-gradient(currentColor, currentColor) center / 1.5px 100% no-repeat,
+    linear-gradient(currentColor, currentColor) center / 100% 1.5px no-repeat;
+  box-shadow: 1.5px -1px 0 -0.5px var(--pink);
+}
+.ld-status-v {
+  color: rgba(27, 27, 31, 0.76);
+  padding-left: 21px;
+}
+.ld-count {
+  position: absolute;
+  right: var(--gutter);
+  bottom: calc(var(--ch-bot) - 0.04em);
+  display: flex;
+  align-items: flex-start;
+  gap: 0.06em;
+  margin: 0;
+  font-weight: 800;
+  font-stretch: 75%;
+  font-size: clamp(76px, 13vw, 190px);
+  line-height: 0.74;
+  letter-spacing: -0.035em;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0.035em 0.024em 0 color-mix(in srgb, var(--pink) 85%, transparent);
+}
+.ld-count-u {
+  font: 500 12px/1 var(--font-mono);
+  letter-spacing: 0.1em;
+  text-shadow: none;
+  margin-top: 0.1em;
+}
+
+@media (max-width: 700px) {
+  .ld {
+    --mk: min(62vw, 38vh, 380px);
+  }
+  /* no room beside the lockup: the ticket joins the status slug */
+  .ld-ticket {
+    top: auto;
+    right: auto;
+    left: var(--gutter);
+    bottom: calc(var(--ch-bot) + 52px);
+    justify-content: flex-start;
+    max-width: 58vw;
+    transform: rotate(-0.8deg);
+  }
+  .ld-drums {
+    gap: 12px;
+  }
+}
+/* the same lockup metrics as the chrome's phone nameplate */
+@media (max-width: 640px) {
+  .ld-brand {
+    padding: 5px 11px 5px 6px;
+    gap: 9px;
+  }
+  .ld-brand-mark {
+    width: 28px;
+    height: 28px;
+  }
+  .ld-word {
+    font-size: 18px;
+  }
+}
+@media (max-height: 520px) and (orientation: landscape) {
+  .ld {
+    --mk: min(30vw, 40vh, 290px);
+  }
+  .ld-drums {
+    display: none;
+  }
+}
+
+/* ========================================================= rotate gate */
+
+.rot {
+  position: fixed;
+  inset: 0;
+  z-index: 115;
+  display: none;
+  place-items: center;
+  overflow: hidden;
+  color: var(--ink);
+  font-family: var(--font-sans);
+  outline: none;
+}
+.rot.is-on,
+.rot:focus {
+  outline: none;
+}
+@media (orientation: landscape) and (max-height: 500px) and (pointer: coarse) {
+  .rot {
+    display: grid;
+  }
+}
+/* a green flood halftone bleeding in from the bottom-left corner */
+.rot::before {
+  content: '';
+  position: absolute;
+  left: -20vmax;
+  bottom: -30vmax;
+  width: 70vmax;
+  height: 70vmax;
+  background: radial-gradient(circle, var(--green) 0 44%, transparent 48%) 0 0 / 10px 10px;
+  -webkit-mask-image: radial-gradient(closest-side, #000 0 30%, rgba(0, 0, 0, 0.6) 55%, transparent 100%);
+  mask-image: radial-gradient(closest-side, #000 0 30%, rgba(0, 0, 0, 0.6) 55%, transparent 100%);
+  mix-blend-mode: multiply;
+  transform: rotate(15deg);
+}
+.rot-brand {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 14px);
+  left: max(18px, env(safe-area-inset-left, 0px));
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+}
+.rot-brand-mark {
+  width: 30px;
+  height: 30px;
+}
+.rot-brand-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(1.4px 1px 0 color-mix(in srgb, var(--pink) 85%, transparent));
+}
+.rot-brand-svg .mk-loop {
+  fill: var(--ink);
+}
+.rot-brand-svg .mk-diamond {
+  fill: var(--green);
+}
+.rot-brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.rot-word {
+  font-weight: 800;
+  font-stretch: 86%;
+  font-size: 18px;
+  line-height: 0.9;
+  text-shadow: 0.05em 0.035em 0 color-mix(in srgb, var(--pink) 85%, transparent);
+}
+.rot-tag {
+  font: 500 9.5px/1 var(--font-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.rot-slug {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 22px);
+  right: max(18px, env(safe-area-inset-right, 0px));
+  margin: 0;
+  font: 500 10.5px/1 var(--font-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.rot-slug b {
+  font-weight: 500;
+  margin: 0 0.3em;
+}
+.rot-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: clamp(16px, 3vw, 30px);
+  max-width: min(600px, calc(100vw - 2 * max(28px, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px))));
+  margin-top: 26px;
+  padding: 20px 28px 20px 18px;
+  background: var(--paper-2);
+  border: 2px solid var(--ink);
+  border-radius: 4px;
+  box-shadow: 6px 6px 0 var(--ink);
+  transform: rotate(-1.2deg);
+}
+/* a strip of pink tape holds the card to the sheet */
+.rot-tape {
+  position: absolute;
+  top: -13px;
+  left: 50%;
+  width: 92px;
+  height: 24px;
+  background: color-mix(in srgb, var(--pink) 72%, transparent);
+  mix-blend-mode: multiply;
+  transform: translateX(-50%) rotate(4deg);
+}
+.rot-crop {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border: 0 solid var(--ink);
+}
+.rot-crop--tl {
+  top: -9px;
+  left: -9px;
+  border-width: 1px 0 0 1px;
+}
+.rot-crop--tr {
+  top: -9px;
+  right: -9px;
+  border-width: 1px 1px 0 0;
+}
+.rot-crop--bl {
+  bottom: -9px;
+  left: -9px;
+  border-width: 0 0 1px 1px;
+}
+.rot-crop--br {
+  bottom: -9px;
+  right: -9px;
+  border-width: 0 1px 1px 0;
+}
+.rot-icon {
+  flex: none;
+  width: clamp(92px, 26vh, 124px);
+  height: clamp(92px, 26vh, 124px);
+}
+.rot-art {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.rot-arc {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 3;
+  stroke-dasharray: 5 5;
+}
+.rot-arc-head {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 3;
+}
+/* a paper phone that turns upright on twos, then rests */
+.rot-phone {
+  transform-box: view-box;
+  transform-origin: 59px 63px;
+  animation: rot-turn 2.8s step-end infinite;
+}
+.rot-phone-shadow {
+  display: none;
+}
+.rot-phone-body {
+  fill: var(--paper-2);
+  stroke: var(--ink);
+  stroke-width: 3;
+}
+.rot-phone-screen {
+  fill: var(--paper);
+  stroke: var(--ink);
+  stroke-width: 1.5;
+}
+.rot-phone-slot {
+  stroke: var(--ink);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.rot-phone-btn {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.5;
+}
+.rot-dot {
+  mix-blend-mode: multiply;
+}
+.rot-dot--p {
+  fill: var(--pink);
+}
+.rot-dot--g {
+  fill: var(--green);
+}
+.rot-dot--k {
+  fill: var(--ink);
+}
+@keyframes rot-turn {
+  0%,
+  36% {
+    transform: rotate(-90deg);
+  }
+  39% {
+    transform: rotate(-66deg);
+  }
+  42% {
+    transform: rotate(-32deg);
+  }
+  45% {
+    transform: rotate(7deg);
+  }
+  48% {
+    transform: rotate(-3deg);
+  }
+  51%,
+  100% {
+    transform: none;
+  }
+}
+.rot-text {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.rot-eyebrow {
+  font-size: 10.5px;
+}
+.rot-title {
+  margin: 0;
+  font-weight: 800;
+  font-stretch: 78%;
+  font-size: clamp(28px, 4.4vw, 46px);
+  line-height: 0.88;
+  letter-spacing: -0.025em;
+  text-transform: uppercase;
+  text-wrap: balance;
+  text-shadow: 0.04em 0.025em 0 color-mix(in srgb, var(--pink) 85%, transparent);
+}
+.rot-title em {
+  font-style: normal;
+  position: relative;
+  isolation: isolate;
+  padding: 0 0.06em;
+  text-shadow: none;
+}
+.rot-title em::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 0.06em -0.02em 0.02em;
+  background: var(--green);
+  transform: rotate(-1.2deg);
+}
+.rot-sub {
+  margin: 0;
+  font: 500 11.5px/1.4 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(27, 27, 31, 0.76);
+}
+
+/* ================================================== reduced motion (UI) */
+
+@media (prefers-reduced-motion: reduce) {
+  .rot-phone,
+  .ld-drum.is-on i,
+  .ld[data-phase='register'] .ld-print,
+  .ld-patch.is-on::before {
+    animation: none;
+  }
+  .ld-crop::before,
+  .ld-crop::after,
+  .ld-brand,
+  .ld-ticket {
+    animation: none;
+  }
+  .ld-reg circle,
+  .ld-reg path,
+  .ld-bar-reg circle,
+  .ld-bar-reg path {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+  .is-in .ch-top > *,
+  .is-in .ch-bottom > *,
+  .is-in .ch-marks,
+  .is-menu .ch-menu-list li,
+  .is-menu .ch-menu-foot,
+  .is-menu .ch-menu-eyebrow,
+  .is-cut .ch-seg.is-active .ch-patch {
+    animation: none;
+  }
+  .ch-menu-sheet,
+  .is-menu .ch-menu-sheet {
+    transition: none;
+  }
+}
+
+/* ================================================== no-WebGL fallback */
+/* Plain, linear version of the story (src/ui/fallback.ts), printed as a
+   riso zine: newsprint, crop marks, poster heads, duotone screenshots. */
+
+html.no-webgl,
+html.no-webgl body {
+  background-color: var(--paper);
+}
+html.no-webgl #track {
+  pointer-events: auto;
+}
+html.no-webgl #chrome,
+html.no-webgl #stages {
+  display: none;
+}
+.fb {
+  position: relative;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 var(--gutter) calc(48px + env(safe-area-inset-bottom, 0px));
+  color: var(--ink);
+  overflow-wrap: break-word;
+}
+.fb a {
+  color: var(--ink);
+}
+.fb-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px 24px;
+  padding: calc(env(safe-area-inset-top, 0px) + 18px) 0 16px;
+  border-bottom: 2px solid var(--ink);
+}
+.fb-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  text-decoration: none;
+}
+.fb-mark {
+  width: 36px;
+  height: 36px;
+}
+.fb-mark-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(1.6px 1.1px 0 color-mix(in srgb, var(--pink) 85%, transparent));
+}
+.fb-mark-svg .mk-loop {
+  fill: var(--ink);
+}
+.fb-mark-svg .mk-diamond {
+  fill: var(--green);
+}
+.fb-brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.fb-word {
+  font-weight: 800;
+  font-stretch: 86%;
+  font-size: 21px;
+  line-height: 0.9;
+  text-shadow: 0.05em 0.035em 0 color-mix(in srgb, var(--pink) 85%, transparent);
+}
+.fb-sub {
+  font: 500 10px/1 var(--font-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.fb-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 18px;
+}
+.fb-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  font: 500 12px/1 var(--font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-underline-offset: 5px;
+  text-decoration-thickness: 1.5px;
+}
+.fb-cta {
+  display: inline-flex;
+  align-items: center;
+  height: 40px;
+  padding: 0 16px;
+  font: 500 12px/1 var(--font-mono);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  text-decoration: none;
+  background: var(--green);
+  border: 2px solid var(--ink);
+  border-radius: 4px;
+  box-shadow: 3px 3px 0 var(--ink);
+  transform: rotate(-1.5deg);
+}
+.fb-hero {
+  position: relative;
+  padding: clamp(56px, 12vh, 140px) 0 clamp(48px, 9vh, 110px);
+  border-bottom: 1.5px dashed rgba(27, 27, 31, 0.5);
+}
+.fb-hero > :not(.fb-dots) {
+  position: relative;
+}
+.fb-issue {
+  display: flex;
+  gap: 0.6em;
+  margin: 0 0 18px;
+  font: 500 10.5px/1 var(--font-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.fb-issue b {
+  font-weight: 500;
+}
+.fb-h1 {
+  margin: 22px 0 26px;
+  max-width: 11ch;
+}
+.fb-lede {
+  max-width: 44ch;
+  color: rgba(27, 27, 31, 0.8);
+}
+.fb-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 20px;
+  margin: 30px 0 0;
+}
+/* halftone swatches bleeding off the page */
+.fb-dots {
+  position: absolute;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+}
+.fb-dots--hero {
+  top: 6%;
+  right: -8%;
+  width: min(62vw, 640px);
+  aspect-ratio: 1;
+  background: radial-gradient(circle, var(--pink) 0 42%, transparent 46%) 0 0 / 11px 11px;
+  -webkit-mask-image: radial-gradient(closest-side, #000 0 30%, rgba(0, 0, 0, 0.55) 58%, transparent 100%);
+  mask-image: radial-gradient(closest-side, #000 0 30%, rgba(0, 0, 0, 0.55) 58%, transparent 100%);
+  opacity: 0.8;
+}
+.fb-sec {
+  position: relative;
+  padding: clamp(56px, 10vh, 110px) 0;
+  border-bottom: 1.5px dashed rgba(27, 27, 31, 0.5);
+}
+.fb-sec .hud-h2 {
+  margin: 18px 0 clamp(26px, 5vh, 48px);
+  max-width: 16ch;
+}
+.fb-sheet {
+  display: flex;
+  gap: 0.6em;
+  margin: 0 0 18px;
+  font: 500 10.5px/1 var(--font-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.fb-sheet span:first-child {
+  padding: 3px 6px 2px;
+  border: 1.5px solid var(--ink);
+  margin-top: -3px;
+}
+.fb-sheet b {
+  font-weight: 500;
+}
+
+/* work: screenshots pulled as two-colour duotones */
+.fb-work {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+  gap: clamp(22px, 3vw, 36px) clamp(18px, 2.4vw, 28px);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.fb-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-decoration: none;
+}
+.fb-duo {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  border: 2px solid var(--ink);
+  box-shadow: 4px 4px 0 var(--ink);
+  transition:
+    transform 0.2s cubic-bezier(0.3, 1.6, 0.5, 1),
+    box-shadow 0.2s ease;
+}
+.fb-duo--p {
+  background: var(--pink);
+}
+.fb-duo--g {
+  background: var(--green);
+}
+.fb-duo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top;
+  filter: grayscale(1) contrast(1.25) brightness(1.08);
+  mix-blend-mode: multiply;
+}
+.fb-card:hover .fb-duo,
+.fb-card:focus-visible .fb-duo {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 var(--ink);
+}
+.fb-card-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 6px;
+}
+.fb-card-name {
+  font-weight: 800;
+  font-stretch: 84%;
+  font-size: 22px;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: -0.01em;
+}
+.fb-flag {
+  padding: 3px 6px 2px;
+  font: 500 10px/1 var(--font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: var(--pink);
+  border-radius: 2px;
+}
+.fb .hud-label {
+  color: rgba(27, 27, 31, 0.76);
+}
+
+/* services + process: a type case of cards */
+.fb-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 2px solid var(--ink);
+  border-left: 2px solid var(--ink);
+}
+.fb-cell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 22px 22px 24px;
+  border-right: 2px solid var(--ink);
+  border-bottom: 2px solid var(--ink);
+  background: var(--paper-2);
+}
+.fb-cell--p {
+  --c: var(--pink);
+}
+.fb-cell--g {
+  --c: var(--green);
+}
+.fb-cell--k {
+  --c: var(--ink);
+}
+.fb-num {
+  align-self: flex-start;
+  margin: 0;
+  padding: 4px 7px 3px;
+  font: 500 11px/1 var(--font-mono);
+  letter-spacing: 0.1em;
+  color: var(--ink);
+  border: 1.5px solid var(--ink);
+  box-shadow: 2px 2px 0 var(--c);
+}
+.fb-h3 {
+  margin: 0;
+  font-weight: 800;
+  font-stretch: 80%;
+  font-size: clamp(24px, 2.4vw, 30px);
+  line-height: 0.95;
+  letter-spacing: -0.015em;
+  text-transform: uppercase;
+}
+.fb-cell .hud-body {
+  color: rgba(27, 27, 31, 0.8);
+}
+.fb-tags {
+  margin-top: auto;
+  padding-top: 6px;
+}
+
+/* voices: zine pull quotes */
+.fb-quotes {
+  columns: 2 360px;
+  column-gap: clamp(22px, 3vw, 40px);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.fb-quotes li {
+  break-inside: avoid;
+  margin: 0 0 clamp(22px, 3vw, 36px);
+}
+.fb-quote {
+  margin: 0;
+  padding: 22px 22px 20px;
+  background: var(--paper-2);
+  border: 2px solid var(--ink);
+  box-shadow: 5px 5px 0 var(--c, var(--ink));
+}
+.fb-quote--p {
+  --c: var(--pink);
+}
+.fb-quote--g {
+  --c: var(--green);
+}
+.fb-quote--k {
+  --c: var(--ink);
+}
+.fb-quote blockquote {
+  margin: 0 0 14px;
+}
+.fb-quote p {
+  margin: 0;
+  font-weight: 700;
+  font-stretch: 88%;
+  font-size: clamp(19px, 1.8vw, 24px);
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+
+/* process stats */
+.fb-grid--4 {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+}
+.fb-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+  gap: 26px 32px;
+  margin: clamp(36px, 6vh, 64px) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.fb-stats li {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 2px solid var(--ink);
+}
+.fb-stat {
+  font-weight: 800;
+  font-stretch: 75%;
+  font-size: clamp(46px, 6vw, 76px);
+  line-height: 0.85;
+  letter-spacing: -0.03em;
+  text-transform: uppercase;
+  text-shadow: 0.04em 0.025em 0 color-mix(in srgb, var(--pink) 85%, transparent);
+}
+.fb-stat-l {
+  font-size: 15px;
+  line-height: 1.45;
+  color: rgba(27, 27, 31, 0.8);
+  max-width: 30ch;
+}
+
+/* contact: a full-bleed green poster */
+.fb-contact {
+  margin: clamp(40px, 8vh, 80px) 0 0;
+  padding: clamp(40px, 8vh, 90px) clamp(22px, 4vw, 56px);
+  background: var(--green);
+  border: 2px solid var(--ink);
+  box-shadow: 8px 8px 0 var(--ink);
+}
+.fb-contact .hud-eyebrow::before {
+  box-shadow: 1.5px -1px 0 -0.5px var(--pink);
+}
+.fb-contact .hud-title {
+  margin: 18px 0 22px;
+  text-shadow: 0.04em 0.025em 0 color-mix(in srgb, var(--pink) 85%, transparent);
+}
+.fb-contact .fb-lede {
+  color: var(--ink);
+}
+.fb-contact .fb-sheet span:first-child {
+  background: var(--paper-2);
+}
+.fb-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px 24px;
+  margin-top: 36px;
+  padding-top: 18px;
+  border-top: 2px solid var(--ink);
+  font: 500 11px/1.5 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.fb-foot p {
+  margin: 0;
+}
+.fb-foot-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+}
+.fb-foot a {
+  text-underline-offset: 4px;
+}
