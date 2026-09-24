@@ -378,3 +378,27 @@
     padding-right: 8px;
   }
 }
+
+/* short landscape (1366×657, 1280×600…): a tighter manifest, so the stats
+   card keeps clear of the headline wherever it can (and the headline steps
+   aside where it can't, see FoldHud.layout) */
+@media (min-aspect-ratio: 4/5) and (min-width: 768px) and (max-height: 700px) {
+  .stage-process .pf-stats {
+    padding-top: 12px;
+    padding-bottom: 4px;
+  }
+  .stage-process .pf-stats-eyebrow {
+    margin-bottom: 4px;
+  }
+  .stage-process .pf-stat {
+    padding: 6px 0 8px;
+  }
+  .stage-process .pf-stat-v {
+    font-size: clamp(1.6rem, 5vh, 2.4rem);
+    margin-bottom: 2px;
+  }
+  .stage-process .pf-stat-l {
+    font-size: 12.5px;
+    line-height: 1.35;
+  }
+}

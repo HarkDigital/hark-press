@@ -1,9 +1,11 @@
 import * as THREE from 'three'
 import type { CameraPose, Chapter, ChapterContext, Frame } from '../../core/types'
 import { clamp, lerp, smoothstep } from '../../core/math'
+import { grow, headFor, paintGreen, paintKey, PLATE_PAD, releaseScratch, resetMetrics } from './art'
+import { markRect, paintMark } from './markArt'
 import { createMat } from './mat'
-import { Sheet, sheetShadowMaterial, TRIM } from './sheet'
-import { Block, blockShared } from './stamp'
+import { Sheet, sheetShadowMaterial } from './sheet'
+import { Block, blockShared, STRIP, type PlateSpec } from './stamp'
 import { HeroUI } from './ui'
 import {
   PASSES,
@@ -22,16 +24,21 @@ import {
 import './hero.css'
 
 /*
- * HERO — "Proof". The studio as a riso print shop.
+ * HERO — "Proof". The studio as a riso print shop, printing its promise.
  *
- *   0.00–0.10  a blank sheet feeds onto a green cutting mat; a job ticket
- *              is taped beside it (colophon + scroll hint)
- *   0.10–0.56  THREE PASSES: the key, green and pink blocks hop in, drop,
- *              squash and lift, each leaving its plate on the sheet —
- *              misregistered, until the register clicks home (0.47–0.59)
- *   0.60–0.92  PULL THE PRINT: the sheet peels off the bed, lifts and turns
- *              to the camera as a finished poster; the headline stamps in
- *   0.92–1.00  the poster is whisked off the bed and green floods the sheet
+ *   0.00–0.08  a sheet feeds onto a green cutting mat: a pencil LAYOUT of
+ *              the headline and the mark. Three inked blocks wait at its
+ *              head, their labels proofing what they print (so the row
+ *              already reads MAKE THE INTERNET · LISTEN. · the mark); a job
+ *              ticket carries the manifesto, a sticker says scroll
+ *   0.08–0.49  THREE PASSES: the key block stamps MAKE THE / INTERNET with
+ *              LISTEN. hollow, the green block fills LISTEN., the pink
+ *              block prints the mark — misregistered, until the register
+ *              clicks home (0.43–0.52)
+ *   0.53–0.68  PULL THE PRINT: the sheet peels off the bed, lifts and turns
+ *              to the camera as the finished poster; its credit and buttons
+ *              land on it
+ *   0.90–1.00  the poster is whisked off the bed and green floods the sheet
  *
  * The blocks and the sheet move "on twos" (12 drawings a second) so they
  * read as stop-motion paper; the camera stays smooth.
@@ -49,25 +56,26 @@ interface Key {
 type Prop = Exclude<keyof Key, 't'>
 
 const D2R = Math.PI / 180
+// the first two keys' oz is re-solved per viewport by fitOpening (the values here are the 16:10 / phone fits)
 // prettier-ignore
 const KEYS_LAND: Key[] = [
-  { t: 0.0,  el: 72, az: -2, zoom: 1.6,  ox: -1.65, oz: -1.5,  fov: 30 },
-  { t: 0.08, el: 70, az: -2, zoom: 1.56, ox: -1.45, oz: -1.45, fov: 30 },
-  { t: 0.155, el: 48, az: 8, zoom: 1.3,  ox: 0.75,  oz: -1.25, fov: 30 },
-  { t: 0.315, el: 45, az: -6, zoom: 1.28, ox: 0.8,  oz: -1.25, fov: 30 },
-  { t: 0.475, el: 48, az: 7, zoom: 1.3,  ox: 0.75,  oz: -1.25, fov: 30 },
-  { t: 0.565, el: 62, az: 0, zoom: 1.12, ox: 0.2,   oz: -0.35, fov: 30 },
-  { t: 0.62, el: 64, az: 0,  zoom: 1.08, ox: 0.0,   oz: 0.0,   fov: 30 },
+  { t: 0.0,   el: 72, az: -2, zoom: 1.72, ox: -1.5,  oz: -1.95, fov: 30 },
+  { t: 0.08,  el: 70, az: -2, zoom: 1.68, ox: -1.4,  oz: -1.85, fov: 30 },
+  { t: 0.145, el: 50, az: -7, zoom: 1.3,  ox: -1.9,  oz: -1.15, fov: 30 },
+  { t: 0.28,  el: 47, az: -4, zoom: 1.3,  ox: -1.95, oz: -0.55, fov: 30 },
+  { t: 0.415, el: 48, az: 7,  zoom: 1.3,  ox: 0.75,  oz: -1.25, fov: 30 },
+  { t: 0.49,  el: 62, az: 0,  zoom: 1.12, ox: 0.2,   oz: -0.35, fov: 30 },
+  { t: 0.545, el: 64, az: 0,  zoom: 1.08, ox: 0.0,   oz: 0.0,   fov: 30 },
 ]
 // prettier-ignore
 const KEYS_PORT: Key[] = [
-  { t: 0.0,  el: 72, az: -2, zoom: 1.12, ox: 0.0,  oz: -2.1,  fov: 40 },
-  { t: 0.08, el: 70, az: -2, zoom: 1.1,  ox: 0.0,  oz: -2.0,  fov: 40 },
-  { t: 0.155, el: 52, az: 6, zoom: 1.12, ox: 0.1,  oz: -2.4,  fov: 40 },
-  { t: 0.315, el: 49, az: -5, zoom: 1.1, ox: 0.1,  oz: -2.4,  fov: 40 },
-  { t: 0.475, el: 52, az: 5, zoom: 1.12, ox: 0.1,  oz: -2.4,  fov: 40 },
-  { t: 0.565, el: 64, az: 0, zoom: 1.02, ox: 0.0,  oz: -0.6,  fov: 40 },
-  { t: 0.62, el: 65, az: 0,  zoom: 1.02, ox: 0.0,  oz: -0.3,  fov: 40 },
+  { t: 0.0,   el: 72, az: -2, zoom: 1.46, ox: 0.0,  oz: -0.4,  fov: 40 },
+  { t: 0.08,  el: 70, az: -2, zoom: 1.42, ox: 0.0,  oz: -0.4,  fov: 40 },
+  { t: 0.145, el: 54, az: -5, zoom: 1.12, ox: -0.3, oz: -0.9,  fov: 40 },
+  { t: 0.28,  el: 52, az: -4, zoom: 1.1,  ox: -0.4, oz: -0.4,  fov: 40 },
+  { t: 0.415, el: 54, az: 5,  zoom: 1.12, ox: 0.1,  oz: -2.6,  fov: 40 },
+  { t: 0.49,  el: 64, az: 0,  zoom: 1.02, ox: 0.0,  oz: -0.6,  fov: 40 },
+  { t: 0.545, el: 65, az: 0,  zoom: 1.02, ox: 0.0,  oz: -0.3,  fov: 40 },
 ]
 
 /** Smooth monotone cubic through the keys. */
@@ -105,6 +113,35 @@ const yieldFrame = () =>
     else requestAnimationFrame(() => r())
   })
 
+const DISPLAY = `800 condensed 100px 'Bricolage Grotesque Variable'`
+const MONO = '500 20px "DM Mono"'
+/** the display + mono faces, or give up after `ms` (canvas art then redraws when they land) */
+function fontsIn(ms: number): Promise<boolean> {
+  const f = document.fonts
+  if (!f?.load) return Promise.resolve(true)
+  const all = Promise.all([f.load(DISPLAY), f.load(MONO)]).then(
+    () => true,
+    () => false,
+  )
+  return Promise.race([all, new Promise<boolean>(r => setTimeout(() => r(false), ms))])
+}
+
+/** The plates, as art on the reference (landscape) sheet; other layouts scale the blocks. */
+function plateSpecs(): PlateSpec[] {
+  const L = layoutFor(16 / 10)
+  const head = headFor(L)
+  return [
+    { plate: 0, rect: head.keyRect, paint: (ctx, ink, m) => paintKey(ctx, ink, m, head) },
+    { plate: 1, rect: head.greenRect, paint: (ctx, ink, m) => paintGreen(ctx, ink, m, head) },
+    {
+      plate: 2,
+      rect: grow(markRect(L), PLATE_PAD),
+      markH: L.mh,
+      paint: (ctx, ink, m) => paintMark(ctx, m, L, ink, 'rgb(150,0,0)'),
+    },
+  ]
+}
+
 export default function create(): Chapter {
   const group = new THREE.Group()
   let layout: Layout = layoutFor(16 / 10)
@@ -112,6 +149,9 @@ export default function create(): Chapter {
   let sheet: Sheet
   let ui: HeroUI
   let blocks: Block[] = []
+  let specs: PlateSpec[] = []
+  /** per block, for the current layout: where its art lands (sheet units), where it waits, and its scale */
+  const place = [0, 1, 2].map(() => ({ cx: 0, cy: 0, rx: 0, ry: 0, s: 1 }))
   let sheetShadow: THREE.Mesh
   let reduced = false
   let revealAt = -1
@@ -132,7 +172,6 @@ export default function create(): Chapter {
   const v2 = new THREE.Vector3()
   const v3 = new THREE.Vector3()
   const v4 = new THREE.Vector3()
-  const calloutWorld = new THREE.Vector3()
   const euler = new THREE.Euler(0, 0, 0, 'YZX')
 
   /** poster framing (px) + camera distance, recomputed when the viewport changes */
@@ -157,6 +196,37 @@ export default function create(): Chapter {
     posterPos.set(0, layout.port ? 3.3 : 2.7, layout.port ? 0.4 : 0.9)
     sheetQuat(posterN, posterUp, qPoster)
     pf.key = ''
+    placeBlocks()
+  }
+
+  /**
+   * Where each block's art lands on this layout's sheet, how big the block is
+   * (the art was cut for the landscape sheet), and where it waits: a row
+   * beyond the sheet's head, front edges lined up.
+   */
+  function placeBlocks() {
+    if (!sheet || !specs.length) return
+    const head = sheet.head
+    const ref = headFor(layoutFor(16 / 10))
+    const sType = head.fs / ref.fs
+    const sMark = layout.mh / (specs[2].markH ?? layout.mh)
+    const centre = (r: { x0: number; x1: number; y0: number; y1: number }) => [(r.x0 + r.x1) / 2, (r.y0 + r.y1) / 2]
+    const c = [centre(head.keyRect), centre(head.greenRect), [layout.mx, layout.my]]
+    const gap = layout.port ? 0.26 : 0.4
+    const widths = blocks.map((b, i) => b.footprint.x * (i === 2 ? sMark : sType))
+    const total = widths.reduce((a, w) => a + w, 0) + gap * 2
+    let x = -total / 2
+    const front = layout.h / 2 + (layout.port ? 0.4 : 0.4)
+    blocks.forEach((b, i) => {
+      const s = i === 2 ? sMark : sType
+      const p = place[i]
+      p.s = s
+      p.cx = c[i][0]
+      p.cy = c[i][1]
+      p.rx = x + widths[i] / 2
+      p.ry = front + (b.faceDepth * s) / 2
+      x += widths[i] + gap
+    })
   }
 
   /** Where the settled poster sits on screen, and the camera distance that puts it there. */
@@ -168,7 +238,8 @@ export default function create(): Chapter {
     const safeBot = ui?.safe.bottom ?? 80
     const fov = layout.port ? 38 : 30
     const sa = layout.w / layout.h
-    let ph = Math.min(h - safeTop - safeBot + (layout.port ? 40 : 90), h * 0.9)
+    // inside the chrome's safe band (a hair over in portrait, where the band is generous)
+    let ph = Math.min(h - safeTop - safeBot + (layout.port ? 16 : 6), h * (layout.port ? 0.9 : 0.86))
     let pw = ph * sa
     const maxW = w * (layout.port ? 0.93 : 0.9)
     if (pw > maxW) {
@@ -189,6 +260,38 @@ export default function create(): Chapter {
     return pf
   }
 
+  // per-instance keys: the opening two are re-solved for the viewport (fitOpening)
+  const keysLand = KEYS_LAND.map(k => ({ ...k }))
+  const keysPort = KEYS_PORT.map(k => ({ ...k }))
+  let openKey = ''
+
+  /**
+   * The opening frame: whatever the aspect, the waiting row sits just under
+   * the chrome's top band. Solves the first two keys' oz so the ray at that
+   * screen height grazes the row's back edge (portrait: its knobs too).
+   */
+  function fitOpening(w: number, h: number) {
+    const key = `${w}|${h}|${layout.port}|${ui?.safe.top}`
+    if (key === openKey || !blocks.length) return
+    openKey = key
+    const keys = layout.port ? keysPort : keysLand
+    const a = w / Math.max(1, h)
+    let back = 0
+    blocks.forEach((b, i) => (back = Math.max(back, place[i].ry + (b.faceDepth / 2 + STRIP) * place[i].s)))
+    const hb = layout.port ? 1.3 * place[0].s : 0.55
+    const safeTop = ui?.safe.top ?? 90
+    const ft = clamp((safeTop + (layout.port ? 6 : -8)) / h, 0.02, 0.4)
+    for (const i of [0, 1]) {
+      const k = keys[i]
+      const el = k.el * D2R
+      const tanH = Math.tan((k.fov * D2R) / 2)
+      const dist = fitDist(keys, k.t, a) * k.zoom
+      const alpha = el - Math.atan((1 - 2 * ft) * tanH)
+      const fit = -back - dist * Math.cos(el) + (dist * Math.sin(el) - hb) / Math.tan(alpha)
+      if (Number.isFinite(fit)) k.oz = fit
+    }
+  }
+
   function fitDist(keys: Key[], t: number, a: number) {
     const fov = sample(keys, t, 'fov') * D2R
     const el = sample(keys, t, 'el') * D2R
@@ -199,10 +302,12 @@ export default function create(): Chapter {
   }
 
   /** where each block waits: a row on the bench beyond the sheet's head */
-  const REST_YAW = [0.07, -0.035, 0.09]
-  function restPoint(i: number, out: THREE.Vector3) {
-    const xs = layout.port ? [-3.15, 0, 3.15] : [-3.22, 0, 3.22]
-    return bedPoint(xs[i], layout.h / 2 + 1.95, out)
+  const REST_YAW = [0.05, -0.035, 0.07]
+  function restPoint(i: number, out: THREE.Vector3, clear = 0) {
+    // as the print is pulled the outer blocks are slid aside, clear of the poster's edges
+    const rx = place[i].rx
+    const side = Math.abs(rx) > 0.5 ? Math.sign(rx) * clear * (layout.port ? 4.5 : 7) : 0
+    return bedPoint(rx + side, place[i].ry + clear * 0.8, out)
   }
 
   /**
@@ -212,8 +317,8 @@ export default function create(): Chapter {
   function blockPose(i: number, l: number, b: Block, motion: number, rt: number, gate: number, next: number) {
     const P = PASSES[i]
     const c = P.contact
-    const land = bedPoint(layout.mx + REG_OFFSET[i][0], layout.my + REG_OFFSET[i][1], v1)
-    const rest = restPoint(i, v2)
+    const land = bedPoint(place[i].cx + REG_OFFSET[i][0], place[i].cy + REG_OFFSET[i][1], v1)
+    const rest = restPoint(i, v2, easeInOut((l - T.peelA) / (T.poster - T.peelA)))
     const hoverY = layout.port ? 1.7 : 1.55
     const tDrop = c - 0.026
     const tHold = tDrop - 0.008
@@ -292,21 +397,28 @@ export default function create(): Chapter {
         squash = Math.sin(((e - 0.9) / 0.1) * Math.PI) * 0.14 * motion
       }
     }
+    const k = place[i].s
+    // once the poster has settled the bench is empty (the outer blocks were slid off-frame)
+    b.root.visible = b.shadow.visible = l < T.poster
     b.root.position.set(x, y, z)
+    b.root.scale.setScalar(k)
     euler.set(tilt + roll, yaw, 0)
     b.root.quaternion.setFromEuler(euler)
     b.body.scale.set(1 + squash * 0.45, 1 - squash, 1 + squash * 0.45)
-    // contact shadow on the bed below
+    // contact shadow on the bed below (under the wood, which sits back from the face by half the strip)
     const s = b.shadowU
     const hgt = Math.max(0, y)
-    b.shadow.position.set(x + hgt * 0.22, 0.024, z + hgt * 0.1)
+    const back = (STRIP / 2) * k
+    b.shadow.position.set(x + hgt * 0.22 - Math.sin(yaw) * back, 0.024, z + hgt * 0.1 - Math.cos(yaw) * back)
     b.shadow.rotation.set(-Math.PI / 2, 0, yaw)
     const spread = 1 + hgt * 0.16
-    const pw = b.footprint.x * spread + 1.2
-    const pd = b.footprint.y * spread + 1.2
+    const fx = b.footprint.x * k
+    const fy = b.footprint.y * k
+    const pw = fx * spread + 1.2
+    const pd = fy * spread + 1.2
     b.shadow.scale.set(pw, pd, 1)
     s.uPlane.value.set(pw, pd)
-    s.uHalf.value.set((b.footprint.x * spread) / 2, (b.footprint.y * spread) / 2)
+    s.uHalf.value.set((fx * spread) / 2, (fy * spread) / 2)
     s.uSoft.value = 0.1 + hgt * 0.22
     s.uStrength.value = 0.5 * clamp(1 - hgt / 7)
     return y
@@ -315,9 +427,13 @@ export default function create(): Chapter {
   return {
     id: 'hero',
     group,
+    // keyboard stops land on the settled poster: headline printed, buttons in
+    anchors: [T.settled],
 
     async init(ctx: ChapterContext) {
       reduced = ctx.reducedMotion
+      // the headline is canvas type: measure and draw it in the real face
+      const fontsReady = await fontsIn(2500)
       setLayout(window.innerWidth / Math.max(1, window.innerHeight))
       group.add(createMat())
       sheet = new Sheet(ctx.mobile)
@@ -329,20 +445,28 @@ export default function create(): Chapter {
       await yieldFrame()
 
       const shared = blockShared()
+      specs = plateSpecs()
       for (let i = 0; i < 3; i++) {
-        const b = new Block(i, 2.5, shared, ctx.mobile)
+        const b = new Block(specs[i], shared, ctx.mobile)
         blocks.push(b)
         group.add(b.root, b.shadow)
         if (i === 1) await yieldFrame()
       }
+      placeBlocks()
+      releaseScratch()
 
       ui = new HeroUI(ctx.stage)
 
-      // redraw the printed slugs once the mono face is in
-      document.fonts
-        ?.load('500 20px "DM Mono"')
-        .then(() => sheet.drawSlug())
-        .catch(() => {})
+      // a slow font: redraw the printed art once the faces are in
+      if (!fontsReady)
+        fontsIn(20000).then(ok => {
+          if (!ok) return
+          resetMetrics()
+          sheet.reflow()
+          blocks.forEach(b => b.draw())
+          placeBlocks()
+          releaseScratch()
+        })
 
       const onReveal = () => {
         if (revealAt < 0) revealAt = now()
@@ -459,43 +583,26 @@ export default function create(): Chapter {
 
       // --- the DOM ---
       const f = posterFrame(frame.width, frame.height)
-      const titleSize = layout.port ? Math.min(f.pw * 0.2, f.ph * 0.11) : Math.min((f.pw * 0.47) / 3.05, f.ph * 0.19)
-      ui.setPoster({
-        x: f.cx - f.pw / 2,
-        y: f.cy - f.ph / 2,
-        w: f.pw,
-        h: f.ph,
-        fs: titleSize,
-        port: layout.port,
-      })
-      // registration target, top right corner (true position)
-      const cxs = layout.w / 2 - TRIM * 0.5
-      const cys = layout.h / 2 - TRIM * 0.5
-      calloutWorld.set(cxs, cys, 0).applyQuaternion(sheet.mesh.quaternion).add(sheet.mesh.position)
+      ui.setPoster({ x: f.cx - f.pw / 2, y: f.cy - f.ph / 2, w: f.pw, h: f.ph, port: layout.port })
       ui.update({
         local: L,
         intro: revealAt < 0 ? 0 : clamp(rt / 1.2),
         pass,
         done,
-        err,
+        port: layout.port,
         posterOn: L > T.titleA && L < 0.995,
         shiftX: -out * layout.w * 1.45 * f.ppu,
         shiftY: -out * 0.5 * f.ppu,
-        calloutWorld,
-        calloutOn: L > 0.505 && L < 0.598,
-        camera: ctx.camera,
-        w: frame.width,
-        h: frame.height,
-        dt: frame.dt,
       })
 
       thumpNow = thump
     },
 
     camera(local: number, frame: Frame, out: CameraPose) {
-      const keys = layout.port ? KEYS_PORT : KEYS_LAND
+      fitOpening(frame.width, frame.height)
+      const keys = layout.port ? keysPort : keysLand
       const a = frame.width / Math.max(1, frame.height)
-      const t = Math.min(local, 0.62)
+      const t = local
       const el = sample(keys, t, 'el') * D2R
       const az = sample(keys, t, 'az') * D2R
       const dist = fitDist(keys, t, a) * sample(keys, t, 'zoom')

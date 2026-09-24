@@ -4,10 +4,23 @@
    Every selector is scoped under .stage-voices.
    ------------------------------------------------------------------ */
 
+/* a paper chip, so the cutting mat's ruler and grid never run through it */
 .stage-voices .vz-eyebrow {
   position: absolute;
   left: var(--gutter);
   top: var(--safe-top);
+  padding: 5px 9px 5px 7px;
+  background: var(--paper-2);
+  box-shadow: 2px 2px 0 var(--ink);
+  opacity: 0;
+  transform: translate3d(0, -6px, 0);
+  transition:
+    opacity 0.3s ease,
+    transform 0.4s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.stage-voices .vz-eyebrow.is-in {
+  opacity: 1;
+  transform: none;
 }
 
 /* ---------------- the card ---------------- */
@@ -260,7 +273,10 @@
   transition-delay: calc(0.34s + var(--i, 0) * 40ms);
 }
 
-/* ---------------- page tabs ---------------- */
+/* ---------------- page tabs ----------------
+   Real buttons (like the Type Case keys): a tab turns the zine to its spread.
+   The open spread's tab is pressed in green; spreads already turned past
+   are dog-eared. */
 
 .stage-voices .vz-tabs {
   display: flex;
@@ -268,29 +284,57 @@
   margin-top: clamp(12px, 1.8vh, 18px);
 }
 .stage-voices .vz-tab {
+  appearance: none;
+  position: relative;
   flex: 1;
+  min-width: 0;
+  min-height: 26px;
+  margin: 0;
+  padding: 0;
   font-family: var(--font-mono);
   font-size: 10px;
+  font-weight: 500;
   letter-spacing: 0.04em;
   text-align: center;
   line-height: 1;
-  padding: 5px 0 4px;
   color: var(--ink);
+  background: var(--paper-2);
   border: 1.5px solid var(--ink);
   border-radius: 2px;
+  box-shadow: 2px 2px 0 var(--ink);
+  cursor: pointer;
   transition:
-    background-color 0.15s steps(2),
-    transform 0.3s cubic-bezier(0.3, 1.8, 0.5, 1);
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    background-color 0.15s steps(2);
 }
-.stage-voices .vz-tab.is-done {
+.stage-voices .vz-tab:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 var(--ink);
+}
+.stage-voices .vz-tab:active {
+  transform: translate(2px, 2px);
+  box-shadow: 0 0 0 var(--ink);
+}
+/* read: a dog-eared corner in ink (a filled marker that never touches the number) */
+.stage-voices .vz-tab.is-read {
   background: var(--paper-3);
-  text-decoration: line-through;
-  text-decoration-thickness: 1.5px;
+}
+.stage-voices .vz-tab.is-read::after {
+  content: '';
+  position: absolute;
+  top: -1.5px;
+  right: -1.5px;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 0 8px 8px 0;
+  border-color: transparent var(--ink) transparent transparent;
 }
 .stage-voices .vz-tab.is-on {
   background: var(--green);
-  transform: translateY(-3px);
-  box-shadow: 2px 2px 0 var(--ink);
+  transform: translate(2px, 2px);
+  box-shadow: 0 0 0 var(--ink);
 }
 
 /* ---------------- portrait: zine on top, the card below ---------------- */
@@ -308,6 +352,12 @@
   .stage-voices .vz-panel {
     padding: 16px 16px 12px;
     box-shadow: 4px 4px 0 var(--ink);
+  }
+  /* the corner tape tucks up so it never runs under the print-run docket */
+  .stage-voices .vz-tape--b {
+    bottom: -3px;
+    right: -18px;
+    width: 64px;
   }
   .stage-voices .vz-q .hud-quote {
     font-size: clamp(15.5px, 4.25vw, 22px);
@@ -359,7 +409,7 @@
   }
   .stage-voices .vz-tab {
     font-size: 9.5px;
-    padding: 4px 0 3px;
+    min-height: 24px;
   }
 }
 
@@ -369,5 +419,76 @@
   }
   .stage-voices .vz-hint {
     display: none;
+  }
+}
+
+/* ---------------- short landscape (a laptop at 125% zoom, a short window):
+   a compact card that ends above the print-run docket ---------------- */
+
+@media (min-aspect-ratio: 9/10) and (max-height: 620px) {
+  .stage-voices .vz-side {
+    top: calc(var(--safe-top) + 18px);
+  }
+  .stage-voices .vz-panel {
+    padding: 14px 16px 12px;
+    box-shadow: 4px 4px 0 var(--ink);
+  }
+  .stage-voices .vz-slug {
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    font-size: 10.5px;
+  }
+  .stage-voices .vz-q .hud-quote {
+    font-size: clamp(14px, 3.3vh, 19px);
+    line-height: 1.12;
+  }
+  .stage-voices .vz-rule {
+    margin-bottom: 6px;
+    padding-top: 10px;
+    height: 11.5px;
+  }
+  .stage-voices .vz-name {
+    font-size: 17px;
+  }
+  .stage-voices .vz-co {
+    margin-top: 2px;
+    font-size: 10.5px;
+  }
+  /* contents in two compact columns: page + name only */
+  .stage-voices .vz-toc-list {
+    grid-template-columns: 1fr 1fr;
+    grid-auto-flow: column;
+    grid-template-rows: repeat(4, auto);
+    column-gap: 12px;
+  }
+  .stage-voices .vz-toc-list li {
+    grid-template-columns: 22px 1fr;
+    gap: 6px;
+    padding: 3px 0;
+  }
+  .stage-voices .vz-pp {
+    font-size: 15px;
+  }
+  .stage-voices .vz-who {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .stage-voices .vz-who > span {
+    display: none;
+  }
+  .stage-voices .vz-who b {
+    font-size: 14px;
+  }
+  .stage-voices .vz-hint {
+    display: none;
+  }
+  .stage-voices .vz-tabs {
+    margin-top: 10px;
+  }
+  .stage-voices .vz-tab {
+    min-height: 22px;
+    font-size: 9.5px;
   }
 }

@@ -25,6 +25,8 @@
   --line: rgba(27, 27, 31, 0.18);
   --line-strong: rgba(27, 27, 31, 0.42);
   --ghost: var(--pink);
+  /* rgba, not color-mix(): Safari 15 and the CSS minifier both need a plain value */
+  --ghost-85: rgba(255, 62, 157, 0.85);
 
   --font-sans: 'Bricolage Grotesque Variable', 'Bricolage Grotesque', system-ui, sans-serif;
   --font-mono: 'DM Mono', ui-monospace, monospace;
@@ -44,6 +46,7 @@
   --line: rgba(251, 248, 242, 0.24);
   --line-strong: rgba(251, 248, 242, 0.5);
   --ghost: var(--green);
+  --ghost-85: rgba(0, 217, 117, 0.85);
 }
 
 *,
@@ -66,6 +69,11 @@ body {
 
 body {
   overflow-x: clip;
+}
+@supports not (overflow: clip) {
+  body {
+    overflow-x: hidden;
+  }
 }
 
 html {
@@ -238,8 +246,7 @@ a {
   text-transform: uppercase;
   margin: 0;
   color: var(--fg);
-  text-shadow: 0.04em 0.025em 0 rgba(255, 62, 157, 0.85);
-  text-shadow: 0.04em 0.025em 0 color-mix(in srgb, var(--ghost) 85%, transparent);
+  text-shadow: 0.04em 0.025em 0 var(--ghost-85);
   text-wrap: balance;
 }
 .hud-h2 {
@@ -252,8 +259,7 @@ a {
   text-transform: uppercase;
   margin: 0;
   color: var(--fg);
-  text-shadow: 0.035em 0.02em 0 rgba(255, 62, 157, 0.85);
-  text-shadow: 0.035em 0.02em 0 color-mix(in srgb, var(--ghost) 85%, transparent);
+  text-shadow: 0.035em 0.02em 0 var(--ghost-85);
   text-wrap: balance;
 }
 /* <em> = the second drum: that word prints in green (or pink on ink), trapped
@@ -266,7 +272,6 @@ a {
   -webkit-text-stroke: 0.028em var(--ink);
   paint-order: stroke fill;
   text-shadow: 0.04em 0.025em 0 rgba(27, 27, 31, 0.85);
-  text-shadow: 0.04em 0.025em 0 color-mix(in srgb, var(--ink) 85%, transparent);
 }
 .on-ink .hud-title em,
 .on-ink .hud-h2 em {

@@ -139,7 +139,7 @@ interface StampDef {
   ink: string
   /** which wing: R = the half that stays put, L = the half that folds over */
   half: 'L' | 'R'
-  /** centre, reading direction and cap direction in the folded-half config */
+  /** center, reading direction and cap direction in the folded-half config */
   q: V2
   dirX: V2
   dirUp: V2
@@ -358,7 +358,8 @@ export default function create(): Chapter {
   const band = { l: 0, r: 1, t: 0, b: 1 }
   const bandStats = { l: 0, r: 1, t: 0, b: 1 }
   const bandNow = { l: 0, r: 1, t: 0, b: 1 }
-  let shortPortrait = false
+  /** the headline steps aside for the stats (short phones, or wherever the stats card would cover it) */
+  let short = false
 
   const flutter = (x: number, y: number) =>
     flutterAmp * (Math.sin(2.3 * y - flutterPhase) * 0.8 + Math.sin(2.9 * x + flutterPhase * 0.7) * 0.35) * (0.6 + 0.4 * (y / HH + 1))
@@ -474,7 +475,7 @@ export default function create(): Chapter {
         const r = hud.layout(W, H)
         Object.assign(band, r.steps)
         Object.assign(bandStats, r.stats)
-        shortPortrait = r.short
+        short = r.short
       }
       if (typeof ResizeObserver !== 'undefined') {
         const ro = new ResizeObserver(measure)
@@ -536,8 +537,9 @@ export default function create(): Chapter {
       let done = 0
       for (let i = 0; i < 4; i++) if (local >= FW[i][1] - 0.01) done = i + 1
       hud.update({
-        // short phones give the headline's room to the stats once the plane is done
-        head: local > 0.045 && local < 0.93 && !(shortPortrait && local >= KEEL[1] + 0.008),
+        // where the stats card would cover it (short phones, short laptops) the
+        // headline gives its room to the stats once the plane is done
+        head: local > 0.045 && local < 0.93 && !(short && local >= KEEL[1] + 0.008),
         step,
         done,
         steps: local >= FW[0][0] - 0.012 && step >= 0,

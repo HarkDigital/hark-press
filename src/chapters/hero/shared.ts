@@ -5,11 +5,14 @@ import type { Ink } from '../../print/ink'
 /*
  * HERO — "Proof". Shared timeline, layout and small helpers.
  *
- *   0.00–0.10  BLANK   a sheet of newsprint feeds onto the cutting mat
- *   0.10–0.56  PASSES  three blocks drop, squash and lift: key, green, pink
- *   0.47–0.60  REGISTER the three impressions click into register
- *   0.60–0.92  PULL    the sheet peels off the bed and turns into a poster
- *   0.92–1.00  OUT     the poster is whisked away, green floods the sheet
+ *   0.00–0.08  LAYOUT  the sheet is a pencil layout of the headline; the
+ *                      three blocks wait, inked, at its head
+ *   0.08–0.49  PASSES  key prints MAKE THE / INTERNET (LISTEN. hollow),
+ *                      green fills LISTEN., pink prints the mark
+ *   0.43–0.52  REGISTER the plates click into register
+ *   0.53–0.68  PULL    the sheet peels off the bed and turns into a poster
+ *   0.68–0.90  POSTER  settled, with its credit and buttons
+ *   0.90–1.00  OUT     the poster is whisked away, green floods the sheet
  */
 
 export interface Pass {
@@ -23,26 +26,28 @@ export interface Pass {
 
 /** each block is home before the next one leaves (no mid-air crossings) */
 export const PASSES: Pass[] = [
-  { a: 0.085, contact: 0.155, b: 0.245 },
-  { a: 0.245, contact: 0.315, b: 0.405 },
-  { a: 0.405, contact: 0.475, b: 0.565 },
+  { a: 0.08, contact: 0.145, b: 0.215 },
+  { a: 0.215, contact: 0.28, b: 0.35 },
+  { a: 0.35, contact: 0.415, b: 0.49 },
 ]
 
 export const T = {
   /** register error: full until regA, clicks to zero by regB */
-  regA: 0.5,
-  regB: 0.592,
+  regA: 0.43,
+  regB: 0.52,
   /** the pull */
-  peelA: 0.6,
-  liftA: 0.655,
-  poster: 0.77,
+  peelA: 0.53,
+  liftA: 0.58,
+  poster: 0.68,
   /** DOM beats */
-  ticketB: 0.085,
-  hintB: 0.06,
-  readA: 0.12,
-  readB: 0.6,
-  titleA: 0.745,
-  titleB: 0.995,
+  ticketB: 0.16,
+  ticketPort: 0.105,
+  hintB: 0.07,
+  readA: 0.1,
+  readB: 0.5,
+  titleA: 0.64,
+  /** the poster is settled, credit and buttons in (the keyboard anchor) */
+  settled: 0.8,
   /** poster whisked away */
   outA: 0.9,
 }
@@ -53,16 +58,13 @@ export const INK_OF: Ink[] = [
   [1, 0, 0],
 ]
 export const INK_NAME = ['Key', 'Green', 'Pink']
-export const INK_CODE = ['K', 'G', 'P']
 
 /** Register error per ink, in sheet units at full error (black is the reference drum, but it drifts too). */
 export const REG_OFFSET: [number, number][] = [
-  [-0.07, 0.045],
-  [0.16, -0.1],
-  [-0.12, -0.15],
+  [-0.05, 0.035],
+  [0.085, -0.06],
+  [-0.1, -0.12],
 ]
-/** the register error readout at full error */
-export const REG_MM = 3.2
 
 /**
  * Register error 1 → 0. It clicks down like a micrometer knob: eight detents,
@@ -81,7 +83,7 @@ export function registerError(local: number) {
   return clamp(1 - steps / n)
 }
 
-/** Sheet + print layout. Landscape sheets carry the mark on the right, the headline on the left; portrait stacks them. */
+/** Sheet + print layout. Landscape sheets carry the mark on the right, the headline on the left; portrait stacks them (mark on top). */
 export interface Layout {
   port: boolean
   w: number
@@ -96,7 +98,7 @@ export interface Layout {
 
 export function layoutFor(aspect: number): Layout {
   if (aspect >= 0.95) return { port: false, w: 6.8, h: 4.6, mx: 1.78, my: 0.12, mh: 2.5, skew: -0.045 }
-  return { port: true, w: 4.3, h: 6.7, mx: 0, my: 1.46, mh: 2.5, skew: -0.035 }
+  return { port: true, w: 4.3, h: 6.7, mx: 0, my: 1.7, mh: 2.15, skew: -0.035 }
 }
 
 /** Hermite ease with overshoot (snappy stop-motion landings). */

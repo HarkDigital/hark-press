@@ -118,7 +118,7 @@ export function createChrome(root: HTMLElement, engine: Engine, sound: Sound) {
     <div class="ch-marks" aria-hidden="true">
       <i class="ch-crop ch-crop--tl"></i><i class="ch-crop ch-crop--tr"></i><i class="ch-crop ch-crop--bl"></i><i class="ch-crop ch-crop--br"></i>
       ${regSvg('ch-reg ch-reg--t')}${regSvg('ch-reg ch-reg--b')}${regSvg('ch-reg ch-reg--l')}${regSvg('ch-reg ch-reg--r')}
-      <p class="ch-slug">Job HRK-2026 <b>·</b> Pink <b>/</b> Green <b>/</b> Black <b>·</b> 80gsm newsprint</p>
+      <p class="ch-slug">Job HRK-2026 <b>·</b> Pink <b>/</b> Green <b>/</b> Black<span class="ch-slug-x"> <b>·</b> 80gsm newsprint</span></p>
     </div>
 
     <header class="ch-top">
@@ -360,16 +360,21 @@ export function createChrome(root: HTMLElement, engine: Engine, sound: Sound) {
 
   let ink = false
   let flood = false
-  let cutTimer = 0
   let lastF = -1
   const drumV = [-1, -1, -1]
 
-  const pulseCut = () => {
-    chrome.classList.remove('is-cut')
-    void chrome.offsetWidth
-    chrome.classList.add('is-cut')
-    clearTimeout(cutTimer)
-    cutTimer = window.setTimeout(() => chrome.classList.remove('is-cut'), 700)
+  // a new sheet: its patch in the colour bar takes the impression. Played with
+  // the Web Animations API, so a restart never needs a style/layout flush
+  let impress: Animation | null = null
+  const pulseCut = (i: number) => {
+    impress?.cancel()
+    impress = null
+    const patch = segEls[i]?.firstElementChild as HTMLElement | null
+    if (reduced || !patch || typeof patch.animate !== 'function') return
+    impress = patch.animate([{ transform: 'scale(1.25, 1.7)' }, { transform: 'none' }], {
+      duration: 420,
+      easing: 'cubic-bezier(0.3, 1.6, 0.5, 1)',
+    })
   }
 
   return {
@@ -400,7 +405,7 @@ export function createChrome(root: HTMLElement, engine: Engine, sound: Sound) {
         })
         chrome.dataset.chapter = slot.def.id
         lastF = -1
-        if (!first) pulseCut()
+        if (!first) pulseCut(state.index)
       }
 
       // paper type over a stage printed on solid ink (not at the green flood of a cut)

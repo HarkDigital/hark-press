@@ -162,6 +162,22 @@ void main() {
   // end-grain maple, darker on the routed floor round the letter
   vec3 wood = vec3(0.05, 0.0, 0.02);
   vec3 floorInk = wood + vec3(0.03, 0.0, 0.07) + vec3(0.0, 0.0, 0.3) * castSh;
+#ifdef BOLD
+  // the final proof prints bold: where the fresh ink lands, the letter gets a
+  // key keyline and a deep key drop, so the green reads dense on the bench
+  float bold = vGlyph.w * rolled;
+  vec2 kr = uCell * (0.05 / uCellWorld);
+  vec2 kd = kr * 0.7071;
+  float halo = max(
+    max(texture2D(uAtlas, cuv + vec2(kr.x, 0.0)).r, texture2D(uAtlas, cuv - vec2(kr.x, 0.0)).r),
+    max(texture2D(uAtlas, cuv + vec2(0.0, kr.y)).r, texture2D(uAtlas, cuv - vec2(0.0, kr.y)).r));
+  halo = max(halo, max(
+    max(texture2D(uAtlas, cuv + kd).r, texture2D(uAtlas, cuv - kd).r),
+    max(texture2D(uAtlas, cuv + vec2(kd.x, -kd.y)).r, texture2D(uAtlas, cuv + vec2(-kd.x, kd.y)).r)));
+  float drop = texture2D(uAtlas, cuv + uShadowOff * 2.2).r;
+  float rim = max(smoothstep(0.2, 0.55, halo), smoothstep(0.3, 0.7, drop)) * (1.0 - letter);
+  floorInk = mix(floorInk, vec3(0.0, 0.0, 0.97), rim * bold);
+#endif
   vec3 faceCol = mix(floorInk, ink, letter);
   vec3 sideCol = wood + vec3(0.1, 0.0, 0.06) + vec3(0.06, 0.0, 0.5) * shade;
   vec3 d = mix(sideCol, faceCol, top);
@@ -288,8 +304,10 @@ void main() {
   vec3 d = vec3(0.0, 0.0, 0.03 + 0.42 * curl);
   float ht = step(0.02, curl);
   if (front) {
+    // show-through of the print (the final proof bites hard enough to read)
     d += uInk * t.r * uGhost;
-    ht = max(ht, step(0.01, t.r * uGhost));
+    d.b = max(d.b, t.b * uGhost);
+    ht = max(ht, step(0.01, max(t.r, t.b) * uGhost));
   } else {
     d = max(d, uInk * t.r * 0.97);
     d.b = max(d.b, t.b * 0.9);
@@ -587,7 +605,16 @@ export class Press {
     mGeo.setAttribute('aGlyph', this.moverGlyph)
     mGeo.setAttribute('aInkA', this.moverInkA)
     mGeo.setAttribute('aInkB', this.moverInkB)
-    this.movers = new THREE.InstancedMesh(mGeo, this.sortMat, nMov)
+    // the travellers print the final proof bold (a few extra atlas taps, so only
+    // these ~20 sorts pay for them); the uniforms are shared with the case
+    const moverMat = new THREE.ShaderMaterial({
+      vertexShader: SORT_VERT,
+      fragmentShader: SORT_FRAG,
+      toneMapped: false,
+      defines: { BOLD: 1 },
+      uniforms: this.sortMat.uniforms,
+    })
+    this.movers = new THREE.InstancedMesh(mGeo, moverMat, nMov)
     this.movers.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
     this.movers.frustumCulled = false
     this.group.add(this.movers)
@@ -821,11 +848,20 @@ export class Press {
       ctx.fillStyle = 'rgb(255,0,0)'
       ctx.fillRect(ox, oy, rowW, rowH)
       ctx.globalCompositeOperation = 'lighter'
+      // the final proof prints bold, like its type: a key keyline and drop in blue
+      if (k === JOBS - 1) ctx.drawImage(this.keylineRow(line, rowW, rowH, ppu, cell), ox, oy)
       ctx.fillStyle = 'rgb(0,0,255)'
       ctx.font = `500 ${Math.round(rowH * 0.075)}px 'DM Mono', ui-monospace, monospace`
       ctx.textBaseline = 'top'
-      const slug = k < JOBS - 1 ? `PROOF ${String(k + 1).padStart(2, '0')}/${String(JOBS - 1).padStart(2, '0')} · HARK PRESS` : 'FINAL PROOF · HARK PRESS'
-      ctx.fillText(slug, ox + rowH * 0.12, oy + rowH * 0.06)
+      if (k < JOBS - 1) {
+        const slug = `PROOF ${String(k + 1).padStart(2, '0')}/${String(JOBS - 1).padStart(2, '0')} · HARK PRESS`
+        ctx.fillText(slug, ox + rowH * 0.12, oy + rowH * 0.06)
+      } else {
+        // the final proof reads through the stock, so its slug sits centred over HARK
+        ctx.textAlign = 'center'
+        ctx.fillText('FINAL PROOF · HARK PRESS', ox + rowW / 2, oy + rowH * 0.17)
+        ctx.textAlign = 'left'
+      }
       ctx.restore()
     })
     const tex = new THREE.CanvasTexture(canvas)
@@ -858,6 +894,46 @@ export class Press {
     this.sheetShadow.position.y = TH + 0.006
     this.sheetShadow.renderOrder = 2
     this.group.add(this.sheetShadow)
+  }
+
+  /**
+   * The key rim round a printed line, in blue on black: the letters stamped
+   * round a ring and along the drop, minus the letters themselves. It matches
+   * the BOLD path of SORT_FRAG, so the proof looks like the type that made it.
+   */
+  private keylineRow(line: SetLine, rowW: number, rowH: number, ppu: number, cell: number) {
+    const c = document.createElement('canvas')
+    c.width = rowW
+    c.height = rowH
+    const t = c.getContext('2d')!
+    t.fillStyle = '#000'
+    t.fillRect(0, 0, rowW, rowH)
+    const A = this.atlas
+    const size = CELL_WORLD * ppu
+    const stamp = (dx: number, dy: number) => {
+      for (const s of line.sorts) {
+        const sx = s.g.u * A.canvas.width
+        const sy = (1 - s.g.v - A.cv) * A.canvas.height
+        const cx = (s.x + this.sheetW / 2) * ppu + dx
+        t.drawImage(A.canvas, sx, sy, cell, cell, cx - size / 2, rowH / 2 + dy - size / 2, size, size)
+      }
+    }
+    t.globalCompositeOperation = 'lighten'
+    const r = 0.05 * ppu
+    for (let i = 0; i < 12; i++) stamp(Math.cos((i * Math.PI) / 6) * r, Math.sin((i * Math.PI) / 6) * r)
+    // the drop falls away from the light (+x, away from the viewer = up the sheet)
+    const dl = Math.hypot(LIGHT.x, LIGHT.z)
+    for (let i = 1; i <= 4; i++) {
+      const d = 0.11 * ppu * (i / 4)
+      stamp((-LIGHT.x / dl) * d, (-LIGHT.z / dl) * d)
+    }
+    // take the letters back out (white − white = black), keep only blue
+    t.globalCompositeOperation = 'difference'
+    stamp(0, 0)
+    t.globalCompositeOperation = 'multiply'
+    t.fillStyle = 'rgb(0,0,255)'
+    t.fillRect(0, 0, rowW, rowH)
+    return c
   }
 
   /** crop marks, registration targets, a line gauge and a colour bar printed on the bench */
@@ -1184,7 +1260,8 @@ export class Press {
           const dry = segment(1.35 - t, 0.5, 1.2)
           inkB.set([lerp(fresh[0], old[0], dry), lerp(fresh[1], old[1], dry), lerp(fresh[2], old[2], dry), mode], n * 4)
         } else inkB.set([fresh[0], fresh[1], fresh[2], mode], n * 4)
-        glyph.set([s.g.u, s.g.v, w, 0], n * 4)
+        // the finale's HARK prints bold (keyline + drop, see SORT_FRAG)
+        glyph.set([s.g.u, s.g.v, w, setting && job === JOBS - 1 ? 1 : 0], n * 4)
         // contact shadow while airborne
         const cx = _m.elements[12]
         const cz = _m.elements[14]
@@ -1282,6 +1359,9 @@ export class Press {
     u.uBend.value = 0
     u.uCurl.value = -this.sheetW / 2 - 1
     u.uGhost.value = 0
+    // a proof shows through the stock faintly; the final one is pulled with a heavy
+    // impression and a full drum, so HARK bites through bold and dense
+    const ghost = k === JOBS - 1 ? 0.95 : 0.1
     if (p < PH.drop1) {
       // flutters down from above
       const e = segment(p, PH.drop0, PH.drop1)
@@ -1302,10 +1382,10 @@ export class Press {
     } else if (p < PH.press1) {
       const e = segment(p, PH.drop1, PH.press1)
       this.state.impression = Math.sin(Math.PI * Math.min(1, e * 1.6))
-      u.uGhost.value = 0.1 * e
+      u.uGhost.value = ghost * e
       sh.position.y = yRest - 0.004 * this.state.impression
     } else {
-      u.uGhost.value = 0.1
+      u.uGhost.value = ghost
       // peel from the left edge over to the right, then hand the proof up
       const e = segment(p, PH.press1, PH.peel1)
       const R = u.uR.value as number

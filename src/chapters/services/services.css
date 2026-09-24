@@ -57,9 +57,11 @@
 .stage-services .svc-finale-title {
   font-size: clamp(3rem, 6.4vw, 7.2rem);
 }
-/* the finale: a label pasted onto the bench under the last proof */
+/* the finale: a label pasted onto the bench under the last proof
+   (lifted clear of the print-run docket: it sits askew and casts a shadow) */
 .stage-services .svc-finale {
   top: auto;
+  bottom: calc(var(--safe-bottom) + 12px);
   left: 50%;
   max-width: calc(100vw - 2 * var(--gutter));
   width: max-content;
@@ -198,6 +200,41 @@
     linear-gradient(currentColor, currentColor) center / 1.5px 100% no-repeat,
     linear-gradient(currentColor, currentColor) center / 100% 1.5px no-repeat;
 }
+/* the slip's state: SETTING while the line is set and inked, then the PROOF stamp */
+.stage-services .svc-state {
+  display: grid;
+  justify-items: end;
+  align-items: center;
+}
+.stage-services .svc-state > * {
+  grid-area: 1 / 1;
+}
+.stage-services .svc-setting {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 7px 1px;
+  border: 1.5px dashed rgba(27, 27, 31, 0.55);
+  color: rgba(27, 27, 31, 0.74);
+  letter-spacing: 0.16em;
+  transition: opacity 0.12s ease;
+}
+/* a composing-stick cursor */
+.stage-services .svc-setting::after {
+  content: '';
+  width: 2px;
+  height: 0.9em;
+  background: currentColor;
+  animation: svc-caret 0.9s steps(2, jump-none) infinite;
+}
+@keyframes svc-caret {
+  to {
+    opacity: 0;
+  }
+}
+.stage-services .svc-slip.is-proofed .svc-setting {
+  opacity: 0;
+}
 /* a rubber PROOF stamp, inked pink */
 .stage-services .svc-stamp {
   padding: 2px 7px 1px;
@@ -207,9 +244,11 @@
   transform: rotate(-5deg);
   mix-blend-mode: multiply;
   letter-spacing: 0.16em;
+  visibility: hidden;
 }
-.stage-services .svc-slip.is-on .svc-stamp {
-  animation: svc-stamp 0.5s cubic-bezier(0.3, 1.6, 0.5, 1) 0.28s both;
+.stage-services .svc-slip.is-on.is-proofed .svc-stamp {
+  visibility: visible;
+  animation: svc-stamp 0.5s cubic-bezier(0.3, 1.6, 0.5, 1) 0.2s both;
 }
 @keyframes svc-stamp {
   from {
@@ -254,6 +293,13 @@
   display: inline-flex;
   gap: 3px;
   flex: none;
+  opacity: 0.22;
+  transition: opacity 0.3s ease;
+}
+/* the colour bar prints with the proof */
+.stage-services .svc-slip.is-proofed .svc-bar {
+  opacity: 1;
+  transition-delay: 0.3s;
 }
 .stage-services .svc-bar i {
   width: 11px;
@@ -421,7 +467,8 @@
     gap: 4px;
   }
   .stage-services .svc-key {
-    min-height: 24px;
+    min-height: 28px;
+    min-width: 24px;
     font-size: 10px;
     box-shadow: 1.5px 1.5px 0 var(--ink);
   }

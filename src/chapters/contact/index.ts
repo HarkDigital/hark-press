@@ -241,6 +241,30 @@ export default function create(): Chapter {
 
   const isPortrait = (w: number, h: number) => w < 768 || w / Math.max(1, h) < 0.9
 
+  /*
+   * Short viewports (a 1280x720 laptop at 125%, a short window): step the
+   * copy down until it fits its band, so nothing runs into the AUDIO
+   * sticker or the docket. 1 drops the colophon, 2 and 3 set smaller type,
+   * 4 drops the body (the postcard prints its first line anyway).
+   * Measured with offsets, so the stamp-in transforms never skew it.
+   */
+  const FIT = ['ct-fit-1', 'ct-fit-2', 'ct-fit-3', 'ct-fit-4'] as const
+  function fitCopy(stage: HTMLElement, portrait: boolean, band: number) {
+    stage.classList.remove(...FIT)
+    const copy = hud.copy
+    const fits = () => {
+      // portrait: the copy stacks up from the bottom; keep a third of the band for the mat
+      if (portrait) return copy.offsetHeight <= band * 0.68
+      let bottom = 0
+      for (const k of copy.children) {
+        const e = k as HTMLElement
+        bottom = Math.max(bottom, e.offsetTop + e.offsetHeight)
+      }
+      return bottom <= copy.clientHeight + 1
+    }
+    for (let i = 0; i < FIT.length && !fits(); i++) stage.classList.add(FIT[i])
+  }
+
   function measure(frame: Frame) {
     if (!hud.copy) return
     if (!box.dirty && box.w === frame.width && box.h === frame.height) return
@@ -254,6 +278,7 @@ export default function create(): Chapter {
     const stage = hud.copy.parentElement!
     stage.classList.toggle('ct-portrait', portrait)
     const p = hud.probe.getBoundingClientRect()
+    fitCopy(stage, portrait, p.height)
     const c = hud.copy.getBoundingClientRect()
     const gutter = p.left
     const safeTop = p.top

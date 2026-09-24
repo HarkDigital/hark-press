@@ -9,9 +9,12 @@ import { SET_WORDS, inkOf } from './timeline'
  * scroll rests the copy is settled and exact.
  *
  *   intro    eyebrow + "Eleven ways to be heard."
- *   pile     one proof slip per service: SERVICE 07 / 11 · title · blurb · tags
+ *   pile     one proof slip per service: SERVICE 07 / 11 · title · blurb · tags.
+ *            The slip for the word in the chase is always on top; it reads
+ *            SETTING while the line is set and inked, and the pink PROOF stamp
+ *            lands when the proof is pulled.
  *   keys     01–11, the case's index (jump to a service)
- *   finale   "Make the internet listen."
+ *   finale   "Set. Inked. Heard." under the printed HARK
  *
  * The camera frames the bench into the space this HUD leaves free, so
  * metrics() reports the live layout (re-measured only when it changes).
@@ -49,6 +52,8 @@ export interface HudState {
   introOn: boolean
   /** -1 none, 0..10 the proof on top of the pile */
   shown: number
+  /** the top slip's proof has been pulled (PROOF stamp down) */
+  proofed: boolean
   /** 0 off, 1 eyebrow (HARK being set), 2 eyebrow + tagline (proof pulled) */
   finale: number
   /** index lit on the 01–11 strip (-1 none) */
@@ -67,6 +72,7 @@ export class Hud {
   private finaleTitle: HTMLElement
   private probe: HTMLElement
   private lastShown = -2
+  private lastProofed = false
   private dirty = true
   private m: HudMetrics = { colRight: 0, colTop: 0, introRight: 0, introTop: 0, finTop: 0, safeTop: 0, safeBottom: 0, tall: false }
 
@@ -100,7 +106,9 @@ export class Hud {
       root.style.setProperty('--dx', `${((k * 37) % 11) - 5}px`)
       const slug = el('div', 'svc-slug', undefined, root)
       el('span', 'svc-no', `Service ${s.num} / ${pad(SERVICES.length)}`, slug)
-      el('span', 'svc-stamp', 'Proof', slug)
+      const state = el('span', 'svc-state', undefined, slug)
+      el('span', 'svc-setting', 'Setting', state)
+      el('span', 'svc-stamp', 'Proof', state)
       const title = rise(el('h3', 'hud-h2 svc-title', undefined, root), titleHtml(s.title))
       el('p', 'hud-body svc-blurb', s.blurb, root)
       const tags = el('ul', 'hud-tags svc-tags', undefined, root)
@@ -115,10 +123,11 @@ export class Hud {
       this.slips.push({ root, title })
     })
 
-    /* finale */
+    /* finale: the printed HARK is the headline; the label just signs it off
+       (the tagline stays the hero's line) */
     this.finale = el('div', 'svc-finale', undefined, stage)
     el('p', 'hud-eyebrow', `Final proof · ${BRAND.short}`, this.finale)
-    this.finaleTitle = rise(el('h2', 'hud-title svc-finale-title', undefined, this.finale), 'Make the internet <em>listen.</em>')
+    this.finaleTitle = rise(el('p', 'hud-title svc-finale-title', undefined, this.finale), 'Set. Inked. <em>Heard.</em>')
 
     /* layout probe for the safe band */
     this.probe = el('div', 'svc-probe', undefined, stage)
@@ -153,11 +162,13 @@ export class Hud {
     setRise(this.introTitle, s.introOn)
 
     setOn(this.col, s.shown >= 0 && !s.finale)
-    if (s.shown !== this.lastShown) {
+    if (s.shown !== this.lastShown || s.proofed !== this.lastProofed) {
       this.lastShown = s.shown
+      this.lastProofed = s.proofed
       this.slips.forEach((it, k) => {
         setOn(it.root, k === s.shown)
         setOn(it.root, k === s.shown - 1, 'is-under')
+        setOn(it.root, k < s.shown || (k === s.shown && s.proofed), 'is-proofed')
         setRise(it.title, k === s.shown)
       })
     }

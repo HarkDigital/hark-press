@@ -1,13 +1,14 @@
 import * as THREE from 'three'
 import { logoParts, logoShapes } from '../../logo/logo'
+import { inkLayer, type Mapper, type Rect } from './art'
 
 /*
  * The mark as flat art: a three-channel separation mask the sheet shader
- * prints from, and the little index prints on top of each block.
+ * prints from, and the pink plate as canvas art (block label + face).
  *
- *   R = loops (the green plate)
- *   G = keyline around every contour (the black plate)
- *   B = diamond (the pink plate; its loops' shadow comes from R, offset)
+ *   R = loops, B = diamond (together: the pink plate; its shadow is the
+ *       same shapes, offset and knocked out)
+ *   G = keyline around every contour (the pencil layout ghost)
  */
 
 export interface MarkFrame {
@@ -20,8 +21,8 @@ export interface MarkFrame {
   span: number
 }
 
-/** keyline weight in mark units */
-export const KEY_W = 0.03
+/** keyline weight in mark units (the layout ghost, and the paper hairline between the pieces) */
+export const KEY_W = 0.02
 /** pink shadow offset (mark units, x right / y up) */
 export const SHADOW_OFF = new THREE.Vector2(0.05, -0.05)
 
@@ -86,51 +87,49 @@ export function buildMaskCanvas(n = 1024): HTMLCanvasElement {
 }
 
 /**
- * The index print on a block's top: that block's plate, printed the way the
- * sheet will receive it, plus the drum code. Canvas channels are ink
- * densities (R pink, G green, B black).
+ * The pink plate: the whole mark (loops + diamond) in solid pink, each
+ * piece kept apart by a hairline of paper, over a half-tint drop shadow
+ * that is knocked out under the mark. Draws in sheet
+ * units through `m`, with the mark centred at (mx, my) and mh tall.
  */
-export function buildIndexCanvas(plate: number, n = 512): HTMLCanvasElement {
+export function paintMark(
+  target: CanvasRenderingContext2D,
+  m: Mapper,
+  at: { mx: number; my: number; mh: number },
+  ink: string,
+  shadowInk: string,
+) {
   const f = markFrame()
-  const cv = document.createElement('canvas')
-  cv.width = cv.height = n
-  const ctx = cv.getContext('2d')!
-  ctx.fillStyle = '#000'
-  ctx.fillRect(0, 0, n, n)
   const parts = logoParts()
-  const inset = n * 0.16
-  const size = n - inset * 2
-  const map = mapper(f, inset, inset * 0.82, size)
-  const ink = plate === 0 ? 'rgb(0,0,255)' : plate === 1 ? 'rgb(0,255,0)' : 'rgb(255,0,0)'
-  if (plate === 0) {
-    ctx.strokeStyle = ink
+  const all = [...parts.loopA, ...parts.loopB, ...parts.diamond]
+  const map = (dx: number, dy: number) => (p: THREE.Vector2): [number, number] => [
+    m.X(at.mx + (p.x - f.cx) * at.mh + dx),
+    m.Y(at.my + (p.y - f.cy) * at.mh + dy),
+  ]
+  inkLayer(target, shadowInk, ctx => {
+    ctx.fill(shapePath(all, map(SHADOW_OFF.x * at.mh, SHADOW_OFF.y * at.mh)), 'evenodd')
+    ctx.globalCompositeOperation = 'destination-out'
+    ctx.fill(shapePath(all, map(0, 0)), 'evenodd')
+  })
+  // one ink: a hairline of paper between the pieces keeps the diamond apart from the loops
+  inkLayer(target, ink, ctx => {
+    ctx.fill(shapePath(all, map(0, 0)), 'evenodd')
+    ctx.globalCompositeOperation = 'destination-out'
     ctx.lineJoin = 'round'
-    ctx.lineWidth = ((KEY_W * 1.5) * size) / f.span
-    ctx.stroke(shapePath(logoShapes(), map))
-  } else if (plate === 1) {
-    ctx.fillStyle = ink
-    ctx.fill(shapePath([...parts.loopA, ...parts.loopB], map), 'evenodd')
-  } else {
-    ctx.fillStyle = 'rgb(150,0,0)'
-    const off = mapper(f, inset + (SHADOW_OFF.x * size) / f.span, inset * 0.82 - (SHADOW_OFF.y * size) / f.span, size)
-    ctx.fill(shapePath([...parts.loopA, ...parts.loopB], off), 'evenodd')
-    // knock the loops out of the shadow (zero ink, still opaque)
-    ctx.fillStyle = '#000'
-    ctx.fill(shapePath([...parts.loopA, ...parts.loopB], map), 'evenodd')
-    ctx.fillStyle = ink
-    ctx.fill(shapePath(parts.diamond, map), 'evenodd')
+    ctx.lineWidth = KEY_W * at.mh * m.k
+    ctx.stroke(shapePath(all, map(0, 0)))
+  })
+}
+
+/** The mark's footprint in sheet units (mark bbox, no shadow). */
+export function markRect(at: { mx: number; my: number; mh: number }): Rect {
+  const f = markFrame()
+  return {
+    x0: at.mx - (f.bw * at.mh) / 2,
+    x1: at.mx + (f.bw * at.mh) / 2,
+    y0: at.my - (f.bh * at.mh) / 2,
+    y1: at.my + (f.bh * at.mh) / 2,
   }
-  // the drum code and a rule, in black, along the foot of the block
-  ctx.globalCompositeOperation = 'lighter'
-  ctx.fillStyle = 'rgb(0,0,235)'
-  ctx.font = `500 ${Math.round(n * 0.062)}px "DM Mono", ui-monospace, monospace`
-  ctx.textBaseline = 'alphabetic'
-  const code = ['K · KEY', 'G · GREEN', 'P · PINK'][plate]
-  ctx.fillText(code, n * 0.08, n * 0.93)
-  const r = ctx.measureText('PLATE 0' + (plate + 1))
-  ctx.fillText('PLATE 0' + (plate + 1), n * 0.92 - r.width, n * 0.93)
-  ctx.fillRect(n * 0.08, n * 0.855, n * 0.84, Math.max(2, n * 0.006))
-  return cv
 }
 
 /** Every k-th point of a closed polyline, so it keeps at most `max` points. */
@@ -159,41 +158,5 @@ export function simpleShapes(which: 'loops' | 'diamond' | 'all', max = 150): THR
     return shape
   })
   _simple.set(key, out)
-  return out
-}
-
-/** Extruded keyline ring around every contour (the key block's relief). */
-export function keylineShapes(width = KEY_W, max = 150): THREE.Shape[] {
-  const out: THREE.Shape[] = []
-  for (const s of logoShapes()) {
-    const loops = [decimate(s.getPoints(), max), ...s.holes.map(h => decimate(h.getPoints(), Math.max(24, max / 2)))]
-    for (const pts of loops) {
-      const a = offsetLoop(pts, width / 2)
-      const b = offsetLoop(pts, -width / 2)
-      const areaA = Math.abs(THREE.ShapeUtils.area(a))
-      const areaB = Math.abs(THREE.ShapeUtils.area(b))
-      const outer = areaA >= areaB ? a : b
-      const inner = areaA >= areaB ? b : a
-      if (THREE.ShapeUtils.isClockWise(outer)) outer.reverse()
-      if (!THREE.ShapeUtils.isClockWise(inner)) inner.reverse()
-      const shape = new THREE.Shape(outer)
-      shape.holes.push(new THREE.Path(inner))
-      out.push(shape)
-    }
-  }
-  return out
-}
-
-function offsetLoop(pts: THREE.Vector2[], d: number): THREE.Vector2[] {
-  const n = pts.length
-  const out: THREE.Vector2[] = []
-  for (let i = 0; i < n; i++) {
-    const p = pts[(i - 1 + n) % n]
-    const q = pts[(i + 1) % n]
-    const tx = q.x - p.x
-    const ty = q.y - p.y
-    const l = Math.hypot(tx, ty) || 1
-    out.push(new THREE.Vector2(pts[i].x + (ty / l) * d, pts[i].y - (tx / l) * d))
-  }
   return out
 }

@@ -1,9 +1,10 @@
 import { logoOutlines } from '../../logo/logo'
+import { setPrintFont } from '../../print/type'
 import { F2_Y, FOLDS, HH, HW, WING, type Crease, type V2 } from './fold'
 
 /*
  * Everything the press puts on paper for the Fold, drawn on 2D canvases whose
- * R/G/B channels are INK densities (pink / green / black), not colours.
+ * R/G/B channels are INK densities (pink / green / black), not colors.
  *
  *   front  the fold-up template: dashed creases (valley) and dash-dot
  *          (mountain), numbered badges, fold arrows, and each step's name
@@ -69,19 +70,24 @@ function text(
   ctx.rotate(angle)
   ctx.scale(1 / S, -1 / S)
   const px = size * S
-  const fam = o.font === 'mono' ? MONO : SANS
-  ctx.font = `${o.weight ?? (o.font === 'mono' ? 500 : 800)} ${px}px ${fam}`
-  const c2 = ctx as Ctx & { fontStretch?: string; letterSpacing?: string }
-  if (o.font !== 'mono' && o.condensed !== false && 'fontStretch' in c2) c2.fontStretch = 'condensed'
+  const mono = o.font === 'mono'
+  const weight = o.weight ?? (mono ? 500 : 800)
+  // condensed sans everywhere, Safari included: xs is the squeeze to apply
+  // by hand when the browser can't condense canvas type itself (1 otherwise)
+  const xs = mono ? setPrintFont(ctx, weight, px, 'normal', MONO) : setPrintFont(ctx, weight, px, o.condensed === false ? 'normal' : 'condensed', SANS)
+  const c2 = ctx as Ctx & { letterSpacing?: string }
   if (o.track && 'letterSpacing' in c2) c2.letterSpacing = `${o.track * px}px`
   ctx.textAlign = o.align ?? 'center'
   ctx.textBaseline = o.base ?? 'middle'
   ctx.fillStyle = o.fill ?? BLACK
+  // the anchor is the origin, so the x-scale keeps the alignment
+  let k = xs
   if (o.fit) {
-    const w = ctx.measureText(str).width
+    const w = ctx.measureText(str).width * xs
     const max = o.fit * S
-    if (w > max) ctx.scale(max / w, 1)
+    if (w > max) k *= max / w
   }
+  if (k !== 1) ctx.scale(k, 1)
   ctx.fillText(str, 0, 0)
   ctx.restore()
 }
@@ -176,7 +182,7 @@ function border(ctx: Ctx, w: number) {
   ctx.restore()
 }
 
-/** Hark mark as a filled path, 1 unit tall, centred on (x, y). */
+/** Hark mark as a filled path, 1 unit tall, centered on (x, y). */
 function mark(ctx: Ctx, x: number, y: number, size: number, angle: number, fill: string) {
   ctx.save()
   ctx.translate(x, y)
@@ -272,7 +278,7 @@ export function drawFront(creases: Crease[], S: number) {
   ctx.globalCompositeOperation = 'lighter'
   text(ctx, S, 'FOLD-UP No.06 · 4 FOLDS · 1 SHEET', 0.5, -1.2, 0, 0.042, { font: 'mono', align: 'center', fit: 0.9 })
   text(ctx, S, 'HARK PRESS', 0.5, -1.125, 0, 0.05, { font: 'mono', weight: 500, fit: 0.9, track: 0.18 })
-  // colour bar
+  // color bar
   const bars: [string, number][] = [
     ['p', 1],
     ['p', 0.5],
@@ -355,7 +361,7 @@ export function drawBack(S: number) {
 
 // ------------------------------------------------------------------ MAT
 
-/** Mat extent in world units, centred on the sheet. */
+/** Mat extent in world units, centered on the sheet. */
 export const MAT = { w: 7.2, h: 5.2 }
 
 export function drawMat(S: number) {
@@ -365,7 +371,7 @@ export function drawMat(S: number) {
   const ctx = c.getContext('2d')!
   ctx.fillStyle = NONE
   ctx.fillRect(0, 0, c.width, c.height)
-  // mat units, y up (y = world -z, i.e. toward the nose), origin at the centre
+  // mat units, y up (y = world -z, i.e. toward the nose), origin at the center
   ctx.setTransform(S, 0, 0, -S, (MAT.w / 2) * S, (MAT.h / 2) * S)
   const u = 1 / S
   const hw = MAT.w / 2
@@ -501,20 +507,18 @@ export function drawStamp(value: string, ink: string, idx: number, W = 640, H = 
   ctx.strokeRect(pad + 16, pad + 16, W - 2 * pad - 32, H - 2 * pad - 32)
   ctx.fillStyle = NONE
   const px = H * 0.6
-  ctx.font = `800 ${px}px ${SANS}`
-  const c2 = ctx as Ctx & { fontStretch?: string }
-  if ('fontStretch' in c2) c2.fontStretch = 'condensed'
+  const xs = setPrintFont(ctx, 800, px, 'condensed', SANS)
   ctx.textAlign = 'center'
   ctx.textBaseline = 'alphabetic'
   const label = value.toUpperCase()
-  const w = ctx.measureText(label).width
+  const w = ctx.measureText(label).width * xs
   const max = W - 2 * (pad + 44)
   ctx.save()
   ctx.translate(W / 2, H / 2 + px * 0.35)
-  if (w > max) ctx.scale(max / w, 1)
+  ctx.scale(xs * (w > max ? max / w : 1), 1)
   ctx.fillText(label, 0, 0)
   ctx.restore()
-  ctx.font = `500 ${H * 0.075}px ${MONO}`
+  setPrintFont(ctx, 500, H * 0.075, 'normal', MONO)
   ctx.textAlign = 'left'
   ctx.fillText(`0${idx + 1}/03`, pad + 30, pad + 50)
   // wear: specks where the rubber didn't take ink

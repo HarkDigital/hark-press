@@ -5,6 +5,9 @@
    ink shadows, and a pink drum printing a hair off register.
    Pink and green are only ever grounds under ink type (≥ 5:1), never
    small text on paper.
+   Ink ghosts are plain rgba() of the drum colours, never color-mix():
+   Safari < 16.2 drops color-mix(), and the CSS minifier collapses a
+   fallback declaration written before it (text-shadow, filter).
    ------------------------------------------------------------------ */
 
 /* ================================================================ shared */
@@ -40,7 +43,7 @@
   color: transparent;
   text-shadow: none;
   background: var(--green);
-  box-shadow: 0.05em 0.035em 0 color-mix(in srgb, var(--pink) 85%, transparent);
+  box-shadow: 0.05em 0.035em 0 rgba(255, 62, 157, 0.85);
 }
 /* the concept name is a small tag, never part of the company name */
 .wm-tag {
@@ -60,7 +63,7 @@
   background: var(--green);
   padding: 0.22em 0.42em 0.18em;
   border-radius: 2px;
-  box-shadow: 1.5px 1px 0 color-mix(in srgb, var(--pink) 90%, transparent);
+  box-shadow: 1.5px 1px 0 rgba(255, 62, 157, 0.9);
 }
 
 /* paper texture: fibre + tooth, for the full-screen sheets (loader, rotate card, menu) */
@@ -83,14 +86,16 @@
   --ch-spring: cubic-bezier(0.3, 1.6, 0.5, 1);
   --ch-fg: var(--ink);
   --ch-muted: rgba(27, 27, 31, 0.76);
-  --ch-ghost: color-mix(in srgb, var(--pink) 85%, transparent);
+  --ch-ghost: rgba(255, 62, 157, 0.85);
   /* a print knockout: the paper is kept clear in a tight trap around small
      type (plus a whisper of soft edge), so it reads over any halftone */
   --ch-kn: var(--paper);
+  /* the knockout at 75% */
+  --ch-kn-soft: rgba(243, 238, 228, 0.75);
   --ch-halo:
     1.5px 0 0 var(--ch-kn), -1.5px 0 0 var(--ch-kn), 0 1.5px 0 var(--ch-kn), 0 -1.5px 0 var(--ch-kn),
     1.1px 1.1px 0 var(--ch-kn), -1.1px -1.1px 0 var(--ch-kn), 1.1px -1.1px 0 var(--ch-kn), -1.1px 1.1px 0 var(--ch-kn),
-    0 0 6px color-mix(in srgb, var(--ch-kn) 75%, transparent);
+    0 0 6px var(--ch-kn-soft);
   position: absolute;
   inset: 0;
   color: var(--ch-fg);
@@ -101,8 +106,9 @@
 .chrome.is-ink {
   --ch-fg: var(--paper-2);
   --ch-muted: rgba(251, 248, 242, 0.86);
-  --ch-ghost: color-mix(in srgb, var(--green) 85%, transparent);
+  --ch-ghost: rgba(0, 217, 117, 0.85);
   --ch-kn: var(--ink);
+  --ch-kn-soft: rgba(27, 27, 31, 0.75);
 }
 /* at the peak of a cut the sheet is solid green: ink type reads on it (9:1), no knockout */
 .chrome.is-flood {
@@ -245,9 +251,19 @@
   font-weight: 500;
   margin: 0 0.35em;
 }
+/* it sits between the AUDIO sticker (gutter + ~200px) and the bottom
+   registration target; the stock line only prints once there is room for it */
+.ch-slug-x {
+  display: none;
+}
 @media (min-width: 1180px) and (min-height: 640px) {
   .ch-slug {
     display: block;
+  }
+}
+@media (min-width: 1400px) and (min-height: 640px) {
+  .ch-slug-x {
+    display: inline;
   }
 }
 
@@ -305,7 +321,7 @@
 .ch-brand {
   /* a nameplate label: always ink on paper, whatever the sheet behind it */
   --ch-fg: var(--ink);
-  --ch-ghost: color-mix(in srgb, var(--pink) 85%, transparent);
+  --ch-ghost: rgba(255, 62, 157, 0.85);
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -611,7 +627,11 @@
   align-items: center;
   column-gap: 10px;
   min-height: 48px;
-  padding: 7px 0 5px;
+  /* the row runs 10px past the rules on each side (inside the gutter), so the
+     focus ring, drawn just inside it, sits in clear paper around the number
+     and the tag while the text stays on the column */
+  margin: 0 -10px;
+  padding: 7px 10px 5px;
   color: var(--ink);
   text-decoration: none;
 }
@@ -633,7 +653,7 @@
   line-height: 0.88;
   letter-spacing: -0.02em;
   text-transform: uppercase;
-  text-shadow: 0.04em 0.025em 0 color-mix(in srgb, var(--pink) 85%, transparent);
+  text-shadow: 0.04em 0.025em 0 rgba(255, 62, 157, 0.85);
 }
 .ch-ml-name::before {
   content: '';
@@ -843,13 +863,13 @@
 .ch-run {
   --ch-fg: var(--ink);
   --ch-muted: rgba(27, 27, 31, 0.74);
-  --ch-ghost: color-mix(in srgb, var(--pink) 85%, transparent);
+  --ch-ghost: rgba(255, 62, 157, 0.85);
   display: flex;
   flex-direction: column;
   align-items: stretch;
   gap: 2px;
   min-width: 0;
-  padding: 8px 10px 3px;
+  padding: 7px 10px 3px;
   color: var(--ink);
   background: var(--paper-2);
   border: 1.5px solid var(--ink);
@@ -925,6 +945,10 @@
   flex-basis: 0;
   min-width: 24px;
   height: 28px;
+  /* a 28px target that only takes 24px of the docket: it reaches 2px into the
+     gap above and the padding below, so the docket fits the bottom band
+     (--safe-bottom) at every viewport */
+  margin: -2px 0;
   display: flex;
   align-items: center;
   border-radius: 2px;
@@ -978,15 +1002,7 @@
 .chrome .ch-seg:focus-visible {
   outline-offset: 1px;
 }
-/* a new sheet: its patch takes the impression */
-.is-cut .ch-seg.is-active .ch-patch {
-  animation: ch-impress 0.42s var(--ch-spring);
-}
-@keyframes ch-impress {
-  0% {
-    transform: scale(1.25, 1.7);
-  }
-}
+/* a new sheet: its patch takes the impression (Web Animations, chrome.ts pulseCut) */
 
 /* ------------------------------------------------------- responsive chrome */
 
@@ -1220,7 +1236,7 @@
   width: 100%;
   height: 100%;
   overflow: visible;
-  filter: drop-shadow(1.6px 1.1px 0 color-mix(in srgb, var(--pink) 85%, transparent));
+  filter: drop-shadow(1.6px 1.1px 0 rgba(255, 62, 157, 0.85));
 }
 .ld-brand-svg .mk-loop {
   fill: var(--ink);
@@ -1239,7 +1255,7 @@
   font-size: 20px;
   line-height: 0.9;
   letter-spacing: -0.012em;
-  text-shadow: 0.05em 0.035em 0 color-mix(in srgb, var(--pink) 85%, transparent);
+  text-shadow: 0.05em 0.035em 0 rgba(255, 62, 157, 0.85);
 }
 .ld-sub {
   font: 500 10px/1 var(--font-mono);
@@ -1530,7 +1546,7 @@
   line-height: 0.74;
   letter-spacing: -0.035em;
   font-variant-numeric: tabular-nums;
-  text-shadow: 0.035em 0.024em 0 color-mix(in srgb, var(--pink) 85%, transparent);
+  text-shadow: 0.035em 0.024em 0 rgba(255, 62, 157, 0.85);
 }
 .ld-count-u {
   font: 500 12px/1 var(--font-mono);
@@ -1634,7 +1650,7 @@
   width: 100%;
   height: 100%;
   overflow: visible;
-  filter: drop-shadow(1.4px 1px 0 color-mix(in srgb, var(--pink) 85%, transparent));
+  filter: drop-shadow(1.4px 1px 0 rgba(255, 62, 157, 0.85));
 }
 .rot-brand-svg .mk-loop {
   fill: var(--ink);
@@ -1652,7 +1668,7 @@
   font-stretch: 86%;
   font-size: 18px;
   line-height: 0.9;
-  text-shadow: 0.05em 0.035em 0 color-mix(in srgb, var(--pink) 85%, transparent);
+  text-shadow: 0.05em 0.035em 0 rgba(255, 62, 157, 0.85);
 }
 .rot-tag {
   font: 500 9.5px/1 var(--font-mono);
@@ -1693,7 +1709,7 @@
   left: 50%;
   width: 92px;
   height: 24px;
-  background: color-mix(in srgb, var(--pink) 72%, transparent);
+  background: rgba(255, 62, 157, 0.72);
   mix-blend-mode: multiply;
   transform: translateX(-50%) rotate(4deg);
 }
@@ -1826,7 +1842,7 @@
   letter-spacing: -0.025em;
   text-transform: uppercase;
   text-wrap: balance;
-  text-shadow: 0.04em 0.025em 0 color-mix(in srgb, var(--pink) 85%, transparent);
+  text-shadow: 0.04em 0.025em 0 rgba(255, 62, 157, 0.85);
 }
 .rot-title em {
   font-style: normal;
@@ -1878,8 +1894,7 @@
   .is-in .ch-marks,
   .is-menu .ch-menu-list li,
   .is-menu .ch-menu-foot,
-  .is-menu .ch-menu-eyebrow,
-  .is-cut .ch-seg.is-active .ch-patch {
+  .is-menu .ch-menu-eyebrow {
     animation: none;
   }
   .ch-menu-sheet,
@@ -1900,7 +1915,8 @@ html.no-webgl #track {
   pointer-events: auto;
 }
 html.no-webgl #chrome,
-html.no-webgl #stages {
+html.no-webgl #stages,
+html.no-webgl #gl {
   display: none;
 }
 .fb {
@@ -1910,6 +1926,10 @@ html.no-webgl #stages {
   padding: 0 var(--gutter) calc(48px + env(safe-area-inset-bottom, 0px));
   color: var(--ink);
   overflow-wrap: break-word;
+}
+/* the masthead, a banner ahead of <main> */
+.fb-banner {
+  padding-bottom: 0;
 }
 .fb a {
   color: var(--ink);
@@ -1938,7 +1958,7 @@ html.no-webgl #stages {
   width: 100%;
   height: 100%;
   overflow: visible;
-  filter: drop-shadow(1.6px 1.1px 0 color-mix(in srgb, var(--pink) 85%, transparent));
+  filter: drop-shadow(1.6px 1.1px 0 rgba(255, 62, 157, 0.85));
 }
 .fb-mark-svg .mk-loop {
   fill: var(--ink);
@@ -1956,7 +1976,7 @@ html.no-webgl #stages {
   font-stretch: 86%;
   font-size: 21px;
   line-height: 0.9;
-  text-shadow: 0.05em 0.035em 0 color-mix(in srgb, var(--pink) 85%, transparent);
+  text-shadow: 0.05em 0.035em 0 rgba(255, 62, 157, 0.85);
 }
 .fb-sub {
   font: 500 10px/1 var(--font-mono);
@@ -2034,14 +2054,43 @@ html.no-webgl #stages {
   mix-blend-mode: multiply;
 }
 .fb-dots--hero {
-  top: 6%;
-  right: -8%;
-  width: min(62vw, 640px);
-  aspect-ratio: 1;
+  /* the swatch bleeds to the edge of the sheet, never past it: the layer spans
+     the sheet (hero + both gutters) and the round swatch is drawn by its mask,
+     centred where the old square swatch sat (right: -8%, top: 6%), so its
+     cut-off side never widens the page (a phone would pan sideways) */
+  --s: min(62vw, 640px);
+  --cx: calc(108% - var(--gutter) * 1.16 - var(--s) / 2);
+  --cy: calc(6% + var(--s) / 2);
+  --fade: 100%;
+  top: 0;
+  bottom: 0;
+  left: calc(-1 * var(--gutter));
+  right: calc(-1 * var(--gutter));
   background: radial-gradient(circle, var(--pink) 0 42%, transparent 46%) 0 0 / 11px 11px;
-  -webkit-mask-image: radial-gradient(closest-side, #000 0 30%, rgba(0, 0, 0, 0.55) 58%, transparent 100%);
-  mask-image: radial-gradient(closest-side, #000 0 30%, rgba(0, 0, 0, 0.55) 58%, transparent 100%);
+  -webkit-mask-image: radial-gradient(
+    circle calc(var(--s) / 2) at var(--cx) var(--cy),
+    #000 0 30%,
+    rgba(0, 0, 0, 0.55) 58%,
+    transparent var(--fade)
+  );
+  mask-image: radial-gradient(
+    circle calc(var(--s) / 2) at var(--cx) var(--cy),
+    #000 0 30%,
+    rgba(0, 0, 0, 0.55) 58%,
+    transparent var(--fade)
+  );
   opacity: 0.8;
+}
+/* phones: a smaller swatch centred on the headline (hero padding + ~136px)
+   and bleeding off the right edge; its dots fade out by 80% of the radius, so
+   the small mono lines above and the lede below stay on clean paper */
+@media (max-width: 600px) {
+  .fb-dots--hero {
+    --s: min(56vw, 240px);
+    --cx: calc(100% - var(--s) * 0.22);
+    --cy: calc(clamp(56px, 12vh, 140px) + 136px);
+    --fade: 80%;
+  }
 }
 .fb-sec {
   position: relative;
@@ -2265,7 +2314,10 @@ html.no-webgl #stages {
   line-height: 0.85;
   letter-spacing: -0.03em;
   text-transform: uppercase;
-  text-shadow: 0.04em 0.025em 0 color-mix(in srgb, var(--pink) 85%, transparent);
+  text-shadow: 0.04em 0.025em 0 rgba(255, 62, 157, 0.85);
+}
+.fb-stats--one {
+  margin: clamp(26px, 4vh, 40px) 0 0;
 }
 .fb-stat-l {
   font-size: 15px;
@@ -2287,7 +2339,7 @@ html.no-webgl #stages {
 }
 .fb-contact .hud-title {
   margin: 18px 0 22px;
-  text-shadow: 0.04em 0.025em 0 color-mix(in srgb, var(--pink) 85%, transparent);
+  text-shadow: 0.04em 0.025em 0 rgba(255, 62, 157, 0.85);
 }
 .fb-contact .fb-lede {
   color: var(--ink);

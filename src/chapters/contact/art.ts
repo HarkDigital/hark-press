@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { BRAND } from '../../content'
 import { logoShapes } from '../../logo/logo'
 import { rng } from '../../core/math'
+import { setPrintFont, type Stretch } from '../../print/type'
 
 /*
  * Canvas art for the airmail postcard. Everything is drawn as INK
@@ -42,9 +43,29 @@ function canvas(w: number, h: number) {
   return { c, ctx }
 }
 
-function font(ctx: Ctx, weight: number, size: number, family: string, stretch: 'condensed' | 'semi-condensed' | 'normal' = 'normal') {
-  ctx.font = `${weight} ${size}px ${family}`
-  if ('fontStretch' in ctx) ctx.fontStretch = stretch
+/**
+ * Set a face. Returns the x-scale to draw it with: 1 wherever the browser
+ * condenses for us, a measured squeeze where it cannot (Safari has no
+ * canvas fontStretch), so condensed type keeps its width everywhere.
+ */
+function font(ctx: Ctx, weight: number, size: number, family: string, stretch: Stretch = 'normal') {
+  const sx = setPrintFont(ctx, weight, size, stretch, family)
+  // the helper's first (measuring) call restores ctx.font from its getter,
+  // which drops the stretch keyword in Chrome; set it once more (a cache hit)
+  if (stretch !== 'normal') setPrintFont(ctx, weight, size, stretch, family)
+  return sx
+}
+
+/** fillText through a font() x-scale */
+function fill(ctx: Ctx, text: string, x: number, y: number, sx: number) {
+  if (sx === 1) {
+    ctx.fillText(text, x, y)
+    return
+  }
+  ctx.save()
+  ctx.scale(sx, 1)
+  ctx.fillText(text, x / sx, y)
+  ctx.restore()
 }
 
 function spaced(ctx: Ctx, em: number) {
@@ -139,9 +160,9 @@ function typed(ctx: Ctx, text: string, x: number, y: number, size: number, rand:
 }
 
 /** fit a string to a width by font size */
-function fitSize(ctx: Ctx, text: string, weight: number, family: string, stretch: 'condensed' | 'normal', maxW: number, maxSize: number) {
-  font(ctx, weight, 100, family, stretch)
-  const w = ctx.measureText(text).width || 1
+function fitSize(ctx: Ctx, text: string, weight: number, family: string, stretch: Stretch, maxW: number, maxSize: number) {
+  const sx = font(ctx, weight, 100, family, stretch)
+  const w = ctx.measureText(text).width * sx || 1
   return Math.min(maxSize, (100 * maxW) / w)
 }
 
@@ -190,22 +211,22 @@ export function drawCardArt(mobile: boolean, aniso: number): CardArt {
   const msgW = 124
   const hello = 'HELLO.'
   const size = fitSize(a, hello, 800, SANS, 'condensed', msgW, 60)
-  font(a, 800, size, SANS, 'condensed')
+  const helloX = font(a, 800, size, SANS, 'condensed')
   spaced(a, -size * 0.02)
   a.textBaseline = 'alphabetic'
   const l1 = 30 + size * 0.74
   const l2 = l1 + size * 0.84
   const ghost = size * 0.035
   a.fillStyle = PINK(0.85)
-  a.fillText('SAY', msgX + ghost, l1 + ghost * 0.6)
+  fill(a, 'SAY', msgX + ghost, l1 + ghost * 0.6, helloX)
   a.fillStyle = BLACK(0.92)
-  a.fillText(hello, msgX + ghost, l2 + ghost * 0.6)
+  fill(a, hello, msgX + ghost, l2 + ghost * 0.6, helloX)
   // the top drum knocks out the ghost beneath it, like the DOM headline
   a.globalCompositeOperation = 'source-over'
   a.fillStyle = BLACK(1)
-  a.fillText('SAY', msgX, l1)
+  fill(a, 'SAY', msgX, l1, helloX)
   a.fillStyle = GREEN(1)
-  a.fillText(hello, msgX, l2)
+  fill(a, hello, msgX, l2, helloX)
   a.globalCompositeOperation = 'lighter'
 
   // the stamp: green field with the mark knocked out, a hard ink shadow behind
@@ -320,11 +341,11 @@ export function drawCardArt(mobile: boolean, aniso: number): CardArt {
   // big "PAR AVION" set across, pink, with the mark in green
   const pa = 'PAR AVION'
   const ps = fitSize(b, pa, 800, SANS, 'condensed', 250, 80)
-  font(b, 800, ps, SANS, 'condensed')
+  const paX = font(b, 800, ps, SANS, 'condensed')
   spaced(b, -ps * 0.02)
   b.fillStyle = PINK(0.9)
   b.textAlign = 'center'
-  b.fillText(pa, CARD_U / 2, CARD_V / 2 + ps * 0.34)
+  fill(b, pa, CARD_U / 2, CARD_V / 2 + ps * 0.34, paX)
   b.save()
   b.fillStyle = GREEN(0.85)
   b.translate(CARD_U / 2, CARD_V / 2 - 2)
@@ -372,8 +393,7 @@ export function drawCardArt(mobile: boolean, aniso: number): CardArt {
     p.restore()
   }
   // centre: a registration mark and the run
-  font(p, 800, 7.4, SANS, 'condensed')
-  p.fillText('HARK', cx, cy - 3.2)
+  fill(p, 'HARK', cx, cy - 3.2, font(p, 800, 7.4, SANS, 'condensed'))
   font(p, 500, 4, MONO)
   p.fillText('07·07', cx, cy + 4.2)
   // wavy cancellation lines across the stamp
@@ -405,11 +425,11 @@ export function drawCardArt(mobile: boolean, aniso: number): CardArt {
   e.strokeRect(11, 11, 278, eh - 22)
   const endTxt = 'END OF PRINT RUN'
   const es = fitSize(e, endTxt, 800, SANS, 'condensed', 250, 60)
-  font(e, 800, es, SANS, 'condensed')
+  const endX = font(e, 800, es, SANS, 'condensed')
   spaced(e, es * 0.01)
   e.textAlign = 'center'
   e.textBaseline = 'alphabetic'
-  e.fillText(endTxt, 150, eh * 0.5 + es * 0.3)
+  fill(e, endTxt, 150, eh * 0.5 + es * 0.3, endX)
   font(e, 500, 8.5, MONO)
   spaced(e, 3)
   e.fillText('RUN 07 / 07  ·  HARK PRESS  ·  2026', 150, eh - 19)

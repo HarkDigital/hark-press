@@ -11,7 +11,11 @@
  * Letters are set in Bricolage Grotesque at 800 / condensed, which reads as
  * an old gothic wood face. Each glyph reports its block width (ink width
  * plus a sliver of shoulder), so an M is a fat sort and an I a thin one.
+ * Where the canvas can't condense (every Safari), setPrintFont reports the
+ * squeeze to draw with, so the sorts come out the same width everywhere.
  */
+
+import { setPrintFont } from '../../print/type'
 
 /** world units covered by one atlas cell (square) */
 export const CELL_WORLD = 1.36
@@ -49,15 +53,8 @@ export interface Atlas {
 
 const FAMILY = "'Bricolage Grotesque Variable', 'Bricolage Grotesque', system-ui, sans-serif"
 
-function setFont(ctx: CanvasRenderingContext2D, px: number): boolean {
-  ctx.font = `800 ${px}px ${FAMILY}`
-  const c = ctx as CanvasRenderingContext2D & { fontStretch?: string }
-  if ('fontStretch' in c) {
-    c.fontStretch = 'condensed'
-    return c.fontStretch === 'condensed'
-  }
-  return false
-}
+/** Set the wood face; returns the x-squeeze to draw with (1 = the canvas condensed it). */
+const setFont = (ctx: CanvasRenderingContext2D, px: number) => setPrintFont(ctx, 800, px, 'condensed', FAMILY)
 
 /** Ornament paths, centred on (0,0), cap-high `h` px. */
 function ornament(ctx: CanvasRenderingContext2D, ch: string, h: number) {
@@ -109,13 +106,13 @@ export function buildAtlas(cellPx: number): Atlas {
 
   const pxPerUnit = cellPx / CELL_WORLD
   // cap height ratio of the face (measure an H at 200px)
-  const condensed = setFont(ctx, 200)
+  setFont(ctx, 200)
   const hm = ctx.measureText('H')
   const capRatio = (hm.actualBoundingBoxAscent || 140) / 200
   const fontPx = (CAP * pxPerUnit) / capRatio
-  setFont(ctx, fontPx)
-  // without a condensed face, squeeze the drawing a touch so sorts stay gothic
-  const squeeze = condensed ? 1 : 0.8
+  // without a condensed face, squeeze the drawing so sorts stay gothic
+  const squeeze = setFont(ctx, fontPx)
+  const condensed = squeeze === 1
   ctx.textBaseline = 'alphabetic'
   ctx.textAlign = 'left'
 
@@ -165,7 +162,7 @@ export function buildAtlas(cellPx: number): Atlas {
     cu: 1 / cols,
     cv: 1 / rows,
     glyphs,
-    font: px => `800 ${px}px ${FAMILY}`,
+    font: px => `800 condensed ${px}px ${FAMILY}`,
     condensed,
     capRatio,
   }

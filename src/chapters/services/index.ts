@@ -1,8 +1,8 @@
 import * as THREE from 'three'
 import type { CameraPose, Chapter, ChapterContext, Frame } from '../../core/types'
-import { clamp, ease, lerp } from '../../core/math'
+import { clamp, ease, lerp, segment } from '../../core/math'
 import { SERVICES } from '../../content'
-import { CASE_W, Press, TH, Z_CHASE } from './press'
+import { CASE_D, CASE_W, Press, TH, Z_CHASE } from './press'
 import { Hud, type HudMetrics } from './hud'
 import { ANCHORS, OUT_START, PH, jobAt, jobLen, jobStart, type JobPhase } from './timeline'
 import { loadWoodFace } from './atlas'
@@ -49,6 +49,13 @@ interface Region {
   b: number
   t: number
 }
+
+/** the camera has pulled back from the ink slab to the case (local) */
+const INTRO_AT = 0.056
+/** the intro title stamps in (local): the pull-back is ~97% done */
+const INTRO_ON = 0.05
+/** the intro frame holds to here (past the chapter's nav landing at 0.08) */
+const INTRO_HOLD = 0.082
 
 const N_PTS = 8
 const _pa = new Float64Array(N_PTS)
@@ -201,7 +208,9 @@ export default function create(): Chapter {
     const chase = { x0: -B.chaseHalfX, x1: B.chaseHalfX, z0: Z_CHASE - B.chaseHalfZ, z1: Z_CHASE + B.chaseHalfZ }
     const IN0 = S({ az: 0.3, el: 1.28, fov: 30, ...slab, sw: 5.5, sx: 0 })
     const IN1 = S({ az: 0.24, el: 1.2, fov: 30, ...slab, sw: 2.2, sx: 0 })
-    const INTRO = S({ az: 0.12, el: 1.12, fov: 28, x0: -8.2, x1: B.slabX + 1.4, z0: -4.2, z1: Z_CHASE + 2.2, sw: 1.0, ay: -0.3, ic: 1 })
+    // the establishing shot (and the nav landing): the whole case and the bench, clear of the
+    // chrome, so nothing is cropped tangent to the nav
+    const INTRO = S({ az: 0.12, el: 1.12, fov: 28, x0: -CASE_W / 2 - 0.2, x1: B.slabX + 1.4, z0: -CASE_D - 0.3, z1: Z_CHASE + 2.2, sw: 1.0, ic: 1 })
     const TOP_A = S({ az: 0.0, el: 1.42, fov: 26, x0: -7.4, x1: 7.4, z0: -3.2, z1: Z_CHASE + 1.7, sw: 1.0 })
     const TOP_B = S({ az: 0.07, el: 1.38, fov: 26, x0: -7.2, x1: 7.6, z0: -3.0, z1: Z_CHASE + 1.7, sw: 1.02 })
     const LOW_A = S({ az: -0.5, el: 0.42, fov: 30, ...chase, fw: 1, sw: 1.0, ay: -0.6 })
@@ -214,11 +223,15 @@ export default function create(): Chapter {
     const FIN_A = S({ az: 0.0, el: 1.26, fov: 26, x0: -fin, x1: fin, z0: Z_CHASE - 1.35, z1: Z_CHASE + 1.05, sw: 1.0, fb: 1 })
     const FIN_B = S({ az: 0.035, el: 1.3, fov: 26, x0: -fin, x1: fin, z0: Z_CHASE - 1.3, z1: Z_CHASE + 1.05, sw: 1.07, fb: 1 })
     const OUT = S({ az: 0.2, el: 1.3, fov: 30, ...slab, sw: 6, sx: 0 })
+    // the pull-back from the ink slab settles by INTRO_AT, and the intro title only
+    // stamps in once it has (INTRO_ON), so it never lands on the roller or the flood
     wide = [
       [0, IN0],
-      [0.03, IN1],
-      [0.074, INTRO],
-      [J(0, 0.3), TOP_A],
+      [0.024, IN1],
+      [INTRO_AT, INTRO],
+      // hold through the nav landing (0.08) so it lands on the settled frame
+      [INTRO_HOLD, INTRO],
+      [J(0, 0.45), TOP_A],
       [J(2, 0.9), TOP_B],
       [J(3, 0.35), LOW_A],
       [J(5, 0.9), LOW_B],
@@ -233,7 +246,7 @@ export default function create(): Chapter {
     // portrait: less to the sides, so frame tighter on the line and let the case bleed
     tall = wide.map(([t, s]) => {
       const o: Partial<Shot> = {}
-      if (s === INTRO) Object.assign(o, { x0: -7.5, x1: 7.5, z0: -5, ax: 0, sw: 1.15 })
+      if (s === INTRO) Object.assign(o, { x0: -7.5, x1: 7.5, z0: -5, ax: 0, ay: -0.3, sw: 1.15 })
       if (s === TOP_A || s === TOP_B) Object.assign(o, { x0: -5.6, x1: 5.6, z0: -2.4, sw: 1.06 })
       if (s === LOW_A || s === LOW_B) Object.assign(o, { sw: 1.08, fov: 34 })
       if (s === CLOSE_A || s === CLOSE_B) Object.assign(o, { sw: 1.12, fov: 28 })
@@ -265,23 +278,35 @@ export default function create(): Chapter {
       press.update(jp, frame.time, calm || frame.reducedMotion)
 
       /* ---------------- HUD ---------------- */
+      // The slip always names the word in the chase: it changes the moment the
+      // new line starts to set (the last one is going back to the case), and
+      // its PROOF stamp lands when the proof is pulled.
+      const m = hud.metrics()
       const { k, p } = jp
       const last = SERVICES.length
       let shown = -1
-      if (k >= 0 && k < last) shown = p >= PH.pull ? k : k - 1
-      // the last proof leaves as the finale job starts, so HARK has the stage
-      else if (k === last && p < 0.08) shown = last - 1
+      let proofed = true
+      if (k === 0) {
+        // the intro holds while the first line sets; slip 01 lands with its proof
+        shown = p >= PH.pull ? 0 : -1
+      } else if (k > 0 && k < last) {
+        shown = p >= PH.set0 ? k : k - 1
+        proofed = shown < k || p >= PH.pull
+      }
+      // the last proof leaves as HARK starts to set, so HARK has the stage
+      else if (k === last && p < PH.set0) shown = last - 1
       const fin = k === last && local < 0.965 && p >= PH.pull ? 2 : 0
       hud.update({
-        // wait for the ink flood to clear so the title's stamp is seen
-        introOn: local > 0.02 && (k < 0 || (k === 0 && p < PH.pull)),
+        // wait for the flood to clear and the camera to settle off the ink slab,
+        // so the title stamps onto a clean frame
+        introOn: local > INTRO_ON && (k < 0 || (k === 0 && p < PH.pull)),
         shown,
+        proofed,
         finale: fin,
         key: shown,
       })
 
       /* ---------------- camera ---------------- */
-      const m = hud.metrics()
       sampleShot(m.tall ? tall : wide, local, cur)
       if (cur.fw > 0) {
         // frame the line being set (short lines come closer)
@@ -298,7 +323,8 @@ export default function create(): Chapter {
       const pp = ctx.post.params
       pp.misreg = 1.4 + 2.6 * st.impression
       pp.glitch = calm ? 0 : 0.12 * st.rolling
-      pp.grain = 0.5
+      // the final proof prints on a freshly charged drum: dense, no starved voids
+      pp.grain = k === last ? lerp(0.5, 0.1, segment(p, PH.roll0, PH.roll1)) : 0.5
     },
 
     onPointerDown(frame: Frame, ctx: ChapterContext) {

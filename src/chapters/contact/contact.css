@@ -284,3 +284,43 @@
     padding: 8px 12px;
   }
 }
+
+/* ---------------- short viewports: fit tiers (JS steps them in) ----------------
+   1: the colophon goes. 2: tighter body, link rows and gaps; the headline
+   eases down. 3: a smaller headline and address. 4: the body goes (the
+   postcard prints its first line anyway). */
+.stage-contact.ct-fit-1 .ct-foot {
+  display: none;
+}
+.stage-contact.ct-fit-2 .ct-title {
+  font-size: clamp(2.4rem, min(10.4vw, 15vh), 7rem);
+}
+.stage-contact.ct-portrait.ct-fit-2 .ct-title {
+  font-size: clamp(2.4rem, min(13vw, 7.4vh), 6rem);
+}
+.stage-contact.ct-fit-2 .ct-head {
+  gap: 6px;
+}
+.stage-contact.ct-fit-2 .ct-main {
+  gap: 10px;
+}
+.stage-contact.ct-fit-2 .ct-body {
+  font-size: 14px;
+  line-height: 1.4;
+}
+.stage-contact.ct-fit-2 .ct-link {
+  min-height: 26px;
+  padding: 2px 0;
+}
+.stage-contact.ct-fit-3 .ct-title {
+  font-size: clamp(2.2rem, min(10.4vw, 11vh), 5rem);
+}
+.stage-contact.ct-portrait.ct-fit-3 .ct-title {
+  font-size: clamp(2.2rem, min(11vw, 6.4vh), 5rem);
+}
+.stage-contact.ct-fit-3 .ct-mail {
+  font-size: clamp(22px, min(3vw, 5.4vh), 34px);
+}
+.stage-contact.ct-fit-4 .ct-body {
+  display: none;
+}

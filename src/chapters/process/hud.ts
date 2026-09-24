@@ -11,7 +11,7 @@ import { PROCESS, STATS } from '../../content'
 export const WING_STATS = ['10 years', '$1M+', '15'].map(v => STATS.find(s => s.value === v)!).filter(Boolean)
 
 /** How each step is folded — decorative diagram slugs. */
-const HOW = ['Valley · corners to centre', 'Valley · edges to centre', 'Valley · fold in half', 'Mountain · wings down']
+const HOW = ['Valley · corners to center', 'Valley · edges to center', 'Valley · fold in half', 'Mountain · wings down']
 
 export interface HudState {
   head: boolean
@@ -87,10 +87,14 @@ export class FoldHud {
   /**
    * The free screen band (px) where the 3D subject should sit while the
    * cards show, and while the stats show. Measured from the real layout.
+   *
+   * `short` means the headline has to step aside once the stats print:
+   * short portrait phones by rule, and any viewport (landscape laptops at
+   * 1366×657 or 1280×600 included) where the stats card would reach up
+   * into the headline.
    */
   layout(W: number, H: number) {
     const portrait = W / Math.max(1, H) < 0.8 || W < 768
-    const cs = getComputedStyle(this.root)
     const px = (v: string, fb: number) => {
       const n = parseFloat(v)
       return Number.isFinite(n) ? n : fb
@@ -101,13 +105,28 @@ export class FoldHud {
     const gutter = px(pcs.paddingLeft, 24)
     const safeTop = px(pcs.top, 90)
     const safeBottom = px(pcs.bottom, 80)
-    void cs
-    const headR = this.head.getBoundingClientRect()
+    // layout boxes, not painted ones: the cards and strips are tilted and
+    // lifted while hidden, and the answer mustn't depend on the moment it's taken
+    const origin = this.root.getBoundingClientRect()
+    const box = (n: HTMLElement) => {
+      let x = 0
+      let y = 0
+      for (let e: HTMLElement | null = n; e && e !== this.root; e = e.offsetParent as HTMLElement | null) {
+        x += e.offsetLeft
+        y += e.offsetTop
+      }
+      const left = origin.left + x
+      const top = origin.top + y
+      return { left, top, right: left + n.offsetWidth, bottom: top + n.offsetHeight }
+    }
+    const headR = box(this.head)
     let textRight = headR.left
-    for (const st of this.strips) textRight = Math.max(textRight, st.getBoundingClientRect().right)
-    const steps = this.stepsBox.getBoundingClientRect()
-    const stats = this.statsBox.getBoundingClientRect()
-    const short = portrait && H < 720
+    for (const st of this.strips) textRight = Math.max(textRight, box(st).right)
+    const steps = box(this.stepsBox)
+    const stats = box(this.statsBox)
+    // (only once both are laid out: a stage measured while display:none reads all zeros)
+    const laidOut = this.head.offsetHeight > 0 && this.statsBox.offsetHeight > 0
+    const short = (portrait && H < 720) || (laidOut && headR.bottom + 16 > stats.top)
     if (portrait) {
       const top = headR.bottom + 14
       return {
@@ -128,7 +147,8 @@ export class FoldHud {
       portrait,
       short,
       steps: { l, r: W - gutter, t: safeTop - 24, b: H - safeBottom + 30 },
-      stats: { l: Math.min(W * 0.62, Math.max(stats.right, textRight) + 28), r: W - gutter, t: safeTop - 24, b: H - safeBottom + 30 },
+      // with the headline stepped aside only the stats card holds the column
+      stats: { l: Math.min(W * 0.62, Math.max(stats.right, short ? 0 : textRight) + 28), r: W - gutter, t: safeTop - 24, b: H - safeBottom + 30 },
     }
   }
 

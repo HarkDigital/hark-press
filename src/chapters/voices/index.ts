@@ -130,9 +130,17 @@ export default function create(): Chapter {
       blocks.push({ root: b, parts: [q, name, co], on: false })
     })
 
+    // page tabs: each one turns the zine to that voice's spread (the stage is
+    // a mouse/touch layer; keyboard stops for the same spreads live in the copy layer)
     const tabRow = el('div', 'vz-tabs', undefined, panel)
-    tabRow.setAttribute('aria-hidden', 'true')
-    tabs = TESTIMONIALS.map((_, i) => el('span', 'vz-tab', pad(i + 1), tabRow))
+    tabs = TESTIMONIALS.map((t, i) => {
+      const b = el('button', 'vz-tab', pad(i + 1), tabRow)
+      b.type = 'button'
+      b.title = `${t.name}, ${t.company}`
+      b.setAttribute('aria-label', `Voice ${pad(i + 1)}: ${t.name}, ${t.company}`)
+      b.addEventListener('click', () => window.__hark?.land('voices', true, anchorAt(i)))
+      return b
+    })
 
     const measure = () => {
       const r = side.getBoundingClientRect()
@@ -180,7 +188,8 @@ export default function create(): Chapter {
     const ny = (px: number) => 1 - (2 * px) / h
     const gutter = Math.max(16, Math.min(48, 0.034 * w))
     const top = Math.max(80, Math.min(112, 0.105 * h))
-    const bottom = Math.max(72, Math.min(100, 0.095 * h))
+    // the bottom chrome band (--safe-bottom)
+    const bottom = Math.max(82, Math.min(110, 0.105 * h))
     if (box.portrait) {
       const pt = box.ok ? box.panelT : h * 0.55
       return { x0: nx(gutter - 4), x1: nx(w - gutter + 4), y0: ny(pt - 20), y1: ny(top + 34) }
@@ -487,7 +496,10 @@ export default function create(): Chapter {
     if (cur !== lastTab) {
       tabs.forEach((t, i) => {
         t.classList.toggle('is-on', i === cur)
-        t.classList.toggle('is-done', cur >= 0 && i < cur)
+        // pages already turned past are dog-eared (read), never struck through
+        t.classList.toggle('is-read', cur >= 0 && i < cur)
+        if (i === cur) t.setAttribute('aria-current', 'page')
+        else t.removeAttribute('aria-current')
       })
       lastTab = cur
     }

@@ -16,9 +16,9 @@ import * as THREE from 'three'
  * angle, so flaps curl over like paper instead of hinging like tin, and the
  * residual radius stacks the layers without z-fighting.
  *
- *   1  LISTEN     top corners to the centre line (valley)
- *   2  PROTOTYPE  new edges to the centre line again (valley)
- *   3  BUILD      in half along the centre (valley: flaps inside)
+ *   1  LISTEN     top corners to the center line (valley)
+ *   2  PROTOTYPE  new edges to the center line again (valley)
+ *   3  BUILD      in half along the center (valley: flaps inside)
  *   4  SUPPORT    wings down on either side, then the keel opens a touch
  */
 

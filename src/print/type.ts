@@ -13,10 +13,11 @@
 export type Stretch = 'normal' | 'semi-condensed' | 'condensed' | 'extra-condensed'
 
 const FAMILY = "'Bricolage Grotesque Variable', 'Bricolage Grotesque', system-ui, sans-serif"
+// measured condensed/normal width ratios for Bricolage Grotesque (wdth axis 75–100)
 const TARGET: Record<Stretch, number> = {
   normal: 1,
-  'semi-condensed': 0.87,
-  condensed: 0.78,
+  'semi-condensed': 0.845,
+  condensed: 0.7,
   'extra-condensed': 0.7,
 }
 const cache = new Map<string, number>()
@@ -37,16 +38,24 @@ export function setPrintFont(
   let sx = cache.get(key)
   if (sx === undefined) {
     // did the browser actually condense? compare against the normal width
+    const full = `${weight} ${kw}${size}px ${family}`
     const probe = 'HARK PRESS 0123'
     const got = ctx.measureText(probe).width
-    const saved = ctx.font
     ctx.font = `${weight} ${size}px ${family}`
     if ('fontStretch' in c) c.fontStretch = 'normal'
     const normal = ctx.measureText(probe).width
-    ctx.font = saved
+    // rebuild the string: the ctx.font getter drops the stretch keyword
+    ctx.font = full
     if ('fontStretch' in c) c.fontStretch = stretch
     sx = normal > 0 && got / normal < 0.95 ? 1 : TARGET[stretch]
-    cache.set(key, sx)
+    // only remember the answer once the real face is in (a fallback face has no width axis)
+    let loaded = true
+    try {
+      loaded = typeof document === 'undefined' || !document.fonts || document.fonts.check(full)
+    } catch {
+      loaded = true
+    }
+    if (loaded) cache.set(key, sx)
   }
   return sx
 }

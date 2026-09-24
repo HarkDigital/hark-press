@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { logoShapes } from '../../logo/logo'
 import { TESTIMONIALS } from '../../content'
+import { setPrintFont, type Stretch } from '../../print/type'
 
 /*
  * The zine's pages, printed as INK DENSITIES into one canvas atlas
@@ -62,22 +63,40 @@ export const rightFace = (s: number) => 2 * s + 2
 
 /* ------------------------------------------------------------------ type */
 
-type Stretch = 'normal' | 'condensed' | 'semi-condensed'
+/**
+ * The x-scale the current font needs. Safari has no canvas fontStretch, so
+ * condensed faces print full width there; setPrintFont measures that and
+ * hands back a squeeze (1 wherever the browser condensed the face itself).
+ * Every fillText goes through fillT and every measured width through tw.
+ */
+let SX = 1
 
 function font(ctx: C2D, weight: number, size: number, fam: 'sans' | 'mono', stretch: Stretch = 'normal', track = 0) {
-  ctx.font = `${weight} ${size}px ${fam === 'sans' ? SANS : MONO}`
-  const c = ctx as C2D & { fontStretch?: Stretch; letterSpacing?: string }
-  if ('fontStretch' in c) c.fontStretch = stretch
+  SX = setPrintFont(ctx, weight, size, fam === 'sans' ? stretch : 'normal', fam === 'sans' ? SANS : MONO)
+  const c = ctx as C2D & { letterSpacing?: string }
   if ('letterSpacing' in c) c.letterSpacing = `${(track * size).toFixed(2)}px`
 }
 
-function wrap(ctx: C2D, text: string, maxW: number): string[] {
-  const words = text.split(/\s+/).filter(Boolean)
+/** fillText in the current font's x-scale (alignment still anchors at x) */
+function fillT(ctx: C2D, s: string, x: number, y: number) {
+  if (SX === 1) return ctx.fillText(s, x, y)
+  const sx = SX
+  keep(ctx, () => {
+    ctx.scale(sx, 1)
+    ctx.fillText(s, x / sx, y)
+  })
+}
+
+/** printed width of `s` in the current font */
+const tw = (ctx: C2D, s: string) => ctx.measureText(s).width * SX
+
+function wrap(ctx: C2D, str: string, maxW: number): string[] {
+  const words = str.split(/\s+/).filter(Boolean)
   const lines: string[] = []
   let line = ''
   for (const w of words) {
     const t = line ? `${line} ${w}` : w
-    if (line && ctx.measureText(t).width > maxW) {
+    if (line && tw(ctx, t) > maxW) {
       lines.push(line)
       line = w
     } else line = t
@@ -105,7 +124,7 @@ function fit(
     setFont(size)
     const lines = wrap(ctx, text, w)
     if (lines.length > maxLines || lines.length * size * lh > boxH) return null
-    for (const l of lines) if (ctx.measureText(l).width > w) return null
+    for (const l of lines) if (tw(ctx, l) > w) return null
     return lines
   }
   let lo = min
@@ -126,7 +145,7 @@ function fit(
       const m = (a + b) / 2
       setFont(size)
       const l = wrap(ctx, text, m)
-      if (l.length <= n && l.every(x => ctx.measureText(x).width <= m)) b = m
+      if (l.length <= n && l.every(x => tw(ctx, x) <= m)) b = m
       else a = m
     }
     setFont(size)
@@ -138,12 +157,34 @@ function fit(
 
 /* ---------------------------------------------------------------- inking */
 
+/** run fn in its own canvas state; the stack stays balanced even if fn throws */
+function keep(ctx: C2D, fn: () => void) {
+  ctx.save()
+  try {
+    fn()
+  } finally {
+    ctx.restore()
+  }
+}
+
 /** overprint: densities add (the press multiplies them like real ink) */
 function over(ctx: C2D, fn: () => void) {
-  ctx.save()
-  ctx.globalCompositeOperation = 'lighter'
-  fn()
-  ctx.restore()
+  keep(ctx, () => {
+    ctx.globalCompositeOperation = 'lighter'
+    fn()
+  })
+}
+
+/**
+ * One piece of a page's art. A piece that fails (a missing canvas API, a
+ * font that never arrived) is left off; the rest of the page still prints.
+ */
+function part(label: string, fn: () => void) {
+  try {
+    fn()
+  } catch (err) {
+    console.warn(`[voices] ${label} skipped`, err)
+  }
 }
 
 function stroke(ctx: C2D, path: Path2D, w = 7, d = 1) {
@@ -242,9 +283,16 @@ function dashes(ctx: C2D, lines: [number, number, number, number][], w = 7) {
   stroke(ctx, p, w)
 }
 
+/** a rounded rectangle built from arcTo (no dependence on Path2D.roundRect) */
 function roundRect(x: number, y: number, w: number, h: number, r: number) {
   const p = new Path2D()
-  p.roundRect(x, y, w, h, r)
+  const rr = Math.max(0, Math.min(r, w / 2, h / 2))
+  p.moveTo(x + rr, y)
+  p.arcTo(x + w, y, x + w, y + h, rr)
+  p.arcTo(x + w, y + h, x, y + h, rr)
+  p.arcTo(x, y + h, x, y, rr)
+  p.arcTo(x, y, x + w, y, rr)
+  p.closePath()
   return p
 }
 
@@ -318,8 +366,7 @@ const DOODLES: ((ctx: C2D, cy: number) => void)[] = [
   // 3 · Bellview Winery — "quick to respond": a speech bubble at speed
   (ctx, cy) => {
     sun(ctx, 560, cy, 290, 'p', 0.5)
-    const b = new Path2D()
-    b.roundRect(290, cy - 170, 520, 300, 70)
+    const b = roundRect(290, cy - 170, 520, 300, 70)
     const t = new Path2D()
     t.moveTo(380, cy + 118)
     t.lineTo(330, cy + 230)
@@ -336,7 +383,7 @@ const DOODLES: ((ctx: C2D, cy: number) => void)[] = [
       ctx.fillStyle = col('k')
       ctx.textAlign = 'center'
       ctx.textBaseline = 'alphabetic'
-      ctx.fillText('!!', 550, cy + 75)
+      fillT(ctx, '!!', 550, cy + 75)
     })
     dashes(ctx, [
       [120, cy - 100, 240, cy - 100],
@@ -353,40 +400,38 @@ const DOODLES: ((ctx: C2D, cy: number) => void)[] = [
     ball.arc(cx, cy, r, 0, Math.PI * 2)
     // shade crescent
     over(ctx, () => {
-      ctx.save()
       ctx.clip(ball)
       ctx.fillStyle = col('p', 0.6)
       ctx.beginPath()
       ctx.arc(cx, cy, r, 0, Math.PI * 2)
       ctx.arc(cx - 50, cy - 45, r * 0.92, 0, Math.PI * 2, true)
       ctx.fill()
-      ctx.restore()
     })
     stroke(ctx, ball, 7)
     // seams + stitches, clipped to the ball
-    ctx.save()
-    ctx.clip(ball)
-    for (const side of [-1, 1]) {
-      const sx = cx + side * r * 1.55
-      const R = r * 1.08
-      const a0 = side < 0 ? 0 : Math.PI
-      const seam = new Path2D()
-      seam.arc(sx, cy, R, a0 - 0.78, a0 + 0.78)
-      stroke(ctx, seam, 5)
-      const st = new Path2D()
-      for (let i = -4; i <= 4; i++) {
-        const a = a0 + i * 0.16
-        const nx = Math.cos(a)
-        const ny = Math.sin(a)
-        const px = sx + nx * R
-        const py = cy + ny * R
-        // little V-stitches pointing along the seam
-        st.moveTo(px - nx * 17 - ny * 9 * side, py - ny * 17 + nx * 9 * side)
-        st.lineTo(px + nx * 17 - ny * 9 * side, py + ny * 17 + nx * 9 * side)
+    keep(ctx, () => {
+      ctx.clip(ball)
+      for (const side of [-1, 1]) {
+        const sx = cx + side * r * 1.55
+        const R = r * 1.08
+        const a0 = side < 0 ? 0 : Math.PI
+        const seam = new Path2D()
+        seam.arc(sx, cy, R, a0 - 0.78, a0 + 0.78)
+        stroke(ctx, seam, 5)
+        const st = new Path2D()
+        for (let i = -4; i <= 4; i++) {
+          const a = a0 + i * 0.16
+          const nx = Math.cos(a)
+          const ny = Math.sin(a)
+          const px = sx + nx * R
+          const py = cy + ny * R
+          // little V-stitches pointing along the seam
+          st.moveTo(px - nx * 17 - ny * 9 * side, py - ny * 17 + nx * 9 * side)
+          st.lineTo(px + nx * 17 - ny * 9 * side, py + ny * 17 + nx * 9 * side)
+        }
+        stroke(ctx, st, 4.5)
       }
-      stroke(ctx, st, 4.5)
-    }
-    ctx.restore()
+    })
     dashes(ctx, [
       [130, cy + 190, 330, cy + 90],
       [110, cy + 90, 340, cy - 5],
@@ -434,12 +479,12 @@ const DOODLES: ((ctx: C2D, cy: number) => void)[] = [
     body.arc(cx, cy, r, 0, Math.PI * 2)
     fill(ctx, body, 'g', 0.85)
     // knock the face back to paper
-    ctx.save()
-    ctx.fillStyle = col('k', 0)
-    ctx.beginPath()
-    ctx.arc(cx, cy, r * 0.74, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.restore()
+    keep(ctx, () => {
+      ctx.fillStyle = col('k', 0)
+      ctx.beginPath()
+      ctx.arc(cx, cy, r * 0.74, 0, Math.PI * 2)
+      ctx.fill()
+    })
     stroke(ctx, body, 7)
     const face = new Path2D()
     face.arc(cx, cy, r * 0.74, 0, Math.PI * 2)
@@ -493,12 +538,12 @@ const DOODLES: ((ctx: C2D, cy: number) => void)[] = [
     }
     ros.closePath()
     fill(ctx, ros, 'p', 0.8)
-    ctx.save()
-    ctx.fillStyle = col('k', 0)
-    ctx.beginPath()
-    ctx.arc(cx, y, 112, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.restore()
+    keep(ctx, () => {
+      ctx.fillStyle = col('k', 0)
+      ctx.beginPath()
+      ctx.arc(cx, y, 112, 0, Math.PI * 2)
+      ctx.fill()
+    })
     stroke(ctx, ros, 6)
     const inner = new Path2D()
     inner.arc(cx, y, 112, 0, Math.PI * 2)
@@ -519,9 +564,9 @@ function slugRow(ctx: C2D, left: string, right: string) {
     ctx.fillStyle = col('k')
     ctx.textBaseline = 'alphabetic'
     ctx.textAlign = 'left'
-    ctx.fillText(left.toUpperCase(), M, 92)
+    fillT(ctx, left.toUpperCase(), M, 92)
     ctx.textAlign = 'right'
-    ctx.fillText(right.toUpperCase(), W - M, 92)
+    fillT(ctx, right.toUpperCase(), W - M, 92)
     ctx.fillRect(M, 116, W - 2 * M, 3)
   })
 }
@@ -533,155 +578,165 @@ function folio(ctx: C2D, page: number, side: 'L' | 'R') {
     font(ctx, 800, 58, 'sans', 'condensed', -0.02)
     ctx.textBaseline = 'alphabetic'
     ctx.textAlign = side === 'L' ? 'left' : 'right'
-    ctx.fillText(pad2(page), side === 'L' ? M : W - M, H - 50)
+    fillT(ctx, pad2(page), side === 'L' ? M : W - M, H - 50)
     font(ctx, 500, 21, 'mono', 'normal', 0.14)
     ctx.textAlign = side === 'L' ? 'right' : 'left'
-    ctx.fillText('HARK ZINE · ISSUE 01 · VOICES', side === 'L' ? W - M : M, H - 60)
+    fillT(ctx, 'HARK ZINE · ISSUE 01 · VOICES', side === 'L' ? W - M : M, H - 60)
   })
 }
 
 function drawPull(ctx: C2D, s: number, side: 'L' | 'R', page: number) {
   const t = TESTIMONIALS[s]
-  slugRow(ctx, 'Voices', `No. ${pad2(s + 1)} / ${pad2(N)}`)
+  part('pull slug', () => slugRow(ctx, 'Voices', `No. ${pad2(s + 1)} / ${pad2(N)}`))
 
   // collage element behind the phrase (varies per voice); the top-right
   // corner stays clear for the HEARD stamp
-  const v = s % 4
-  if (v === 0) sun(ctx, 690, 860, 360, 'g', 0.62)
-  else if (v === 1) {
-    over(ctx, () => {
-      ctx.save()
-      ctx.translate(690, 830)
-      ctx.rotate(0.16)
-      ctx.fillStyle = col('g', 0.45)
-      ctx.fillRect(-235, -235, 470, 470)
-      ctx.restore()
-    })
-  } else if (v === 2) {
-    over(ctx, () => {
-      ctx.fillStyle = col('p', 1)
-      for (let i = 0; i < 10; i++) ctx.fillRect(470, 640 + i * 36, 460, 13)
-    })
-  } else {
-    over(ctx, () => {
-      ctx.fillStyle = col('g', 0.52)
-      ctx.beginPath()
-      ctx.arc(W - M, 840, 330, Math.PI * 0.5, Math.PI * 1.5)
-      ctx.fill()
-    })
-  }
+  part('pull collage', () => {
+    const v = s % 4
+    if (v === 0) sun(ctx, 690, 860, 360, 'g', 0.62)
+    else if (v === 1) {
+      over(ctx, () => {
+        ctx.translate(690, 830)
+        ctx.rotate(0.16)
+        ctx.fillStyle = col('g', 0.45)
+        ctx.fillRect(-235, -235, 470, 470)
+      })
+    } else if (v === 2) {
+      over(ctx, () => {
+        ctx.fillStyle = col('p', 1)
+        for (let i = 0; i < 10; i++) ctx.fillRect(470, 640 + i * 36, 460, 13)
+      })
+    } else {
+      over(ctx, () => {
+        ctx.fillStyle = col('g', 0.52)
+        ctx.beginPath()
+        ctx.arc(W - M, 840, 330, Math.PI * 0.5, Math.PI * 1.5)
+        ctx.fill()
+      })
+    }
+  })
 
   // the giant opening mark, overprinted in pink
-  over(ctx, () => {
-    font(ctx, 800, 1180, 'sans', 'normal')
-    ctx.fillStyle = col('p')
-    ctx.textAlign = 'left'
-    ctx.textBaseline = 'alphabetic'
-    const m = ctx.measureText('\u201C')
-    ctx.fillText('\u201C', M - 8 + m.actualBoundingBoxLeft, 160 + m.actualBoundingBoxAscent)
-  })
+  part('pull mark', () =>
+    over(ctx, () => {
+      font(ctx, 800, 1180, 'sans', 'normal')
+      ctx.fillStyle = col('p')
+      ctx.textAlign = 'left'
+      ctx.textBaseline = 'alphabetic'
+      const m = ctx.measureText('\u201C')
+      fillT(ctx, '\u201C', M - 8 + m.actualBoundingBoxLeft, 160 + m.actualBoundingBoxAscent)
+    }),
+  )
 
   // the pull phrase, set as a poster, bottom-aligned above the credit
-  const text = PULLS[s].toUpperCase()
-  const top = 520
-  const bottom = 1120
-  const lh = 0.86
-  const { size, lines } = fit(
-    ctx,
-    text,
-    z => font(ctx, 800, z, 'sans', 'condensed', -0.015),
-    W - 2 * M,
-    bottom - top,
-    lh,
-    60,
-    300,
-    5,
-  )
-  const cap = ctx.measureText('H').actualBoundingBoxAscent
-  const y0 = bottom - (lines.length - 1) * size * lh
-  // a green marker swipe under the last line
-  const last = lines[lines.length - 1]
-  const lw = ctx.measureText(last).width
-  over(ctx, () => {
-    ctx.save()
-    ctx.translate(M - 18, y0 + (lines.length - 1) * size * lh)
-    ctx.rotate(-0.018)
-    ctx.fillStyle = col('g', 1)
-    ctx.fillRect(0, -cap - size * 0.08, lw + 44, cap + size * 0.2)
-    ctx.restore()
-  })
-  over(ctx, () => {
-    ctx.fillStyle = col('k')
-    ctx.textAlign = 'left'
-    ctx.textBaseline = 'alphabetic'
-    lines.forEach((l, i) => ctx.fillText(l, M, y0 + i * size * lh))
+  part('pull phrase', () => {
+    const text = PULLS[s].toUpperCase()
+    const top = 520
+    const bottom = 1120
+    const lh = 0.86
+    const { size, lines } = fit(
+      ctx,
+      text,
+      z => font(ctx, 800, z, 'sans', 'condensed', -0.015),
+      W - 2 * M,
+      bottom - top,
+      lh,
+      60,
+      300,
+      5,
+    )
+    const cap = ctx.measureText('H').actualBoundingBoxAscent
+    const y0 = bottom - (lines.length - 1) * size * lh
+    // a green marker swipe under the last line
+    const last = lines[lines.length - 1]
+    const lw = tw(ctx, last)
+    over(ctx, () => {
+      ctx.translate(M - 18, y0 + (lines.length - 1) * size * lh)
+      ctx.rotate(-0.018)
+      ctx.fillStyle = col('g', 1)
+      ctx.fillRect(0, -cap - size * 0.08, lw + 44, cap + size * 0.2)
+    })
+    over(ctx, () => {
+      ctx.fillStyle = col('k')
+      ctx.textAlign = 'left'
+      ctx.textBaseline = 'alphabetic'
+      lines.forEach((l, i) => fillT(ctx, l, M, y0 + i * size * lh))
+    })
   })
 
   // credit
-  over(ctx, () => {
-    font(ctx, 500, 24, 'mono', 'normal', 0.1)
-    ctx.fillStyle = col('k')
-    ctx.textAlign = 'left'
-    ctx.fillText(`— ${t.name}, ${t.company}`.toUpperCase(), M, 1196)
-  })
-  folio(ctx, page, side)
+  part('pull credit', () =>
+    over(ctx, () => {
+      font(ctx, 500, 24, 'mono', 'normal', 0.1)
+      ctx.fillStyle = col('k')
+      ctx.textAlign = 'left'
+      fillT(ctx, `— ${t.name}, ${t.company}`.toUpperCase(), M, 1196)
+    }),
+  )
+  part('folio', () => folio(ctx, page, side))
 }
 
 function drawStory(ctx: C2D, s: number, side: 'L' | 'R', page: number) {
   const t = TESTIMONIALS[s]
-  slugRow(ctx, `Client voice ${pad2(s + 1)} / ${pad2(N)}`, '')
-  regMark(ctx, W - M - 20, 82, 13)
+  part('story slug', () => {
+    slugRow(ctx, `Client voice ${pad2(s + 1)} / ${pad2(N)}`, '')
+    regMark(ctx, W - M - 20, 82, 13)
+  })
 
-  DOODLES[s](ctx, 400)
+  part(`doodle ${s}`, () => keep(ctx, () => DOODLES[s](ctx, 400)))
 
   // the full quote
-  const top = 700
-  const bottom = 1110
-  const lh = 1.08
-  const q = `“${t.quote}”`
-  const { size, lines } = fit(
-    ctx,
-    q,
-    z => font(ctx, 650, z, 'sans', 'semi-condensed', -0.012),
-    W - 2 * M,
-    bottom - top,
-    lh,
-    26,
-    66,
-  )
-  const cap = ctx.measureText('H').actualBoundingBoxAscent
-  over(ctx, () => {
-    ctx.fillStyle = col('k')
-    ctx.textAlign = 'left'
-    ctx.textBaseline = 'alphabetic'
-    lines.forEach((l, i) => ctx.fillText(l, M, top + cap + i * size * lh))
+  part('story quote', () => {
+    const top = 700
+    const bottom = 1110
+    const lh = 1.08
+    const q = `“${t.quote}”`
+    const { size, lines } = fit(
+      ctx,
+      q,
+      z => font(ctx, 650, z, 'sans', 'semi-condensed', -0.012),
+      W - 2 * M,
+      bottom - top,
+      lh,
+      26,
+      66,
+    )
+    const cap = ctx.measureText('H').actualBoundingBoxAscent
+    over(ctx, () => {
+      ctx.fillStyle = col('k')
+      ctx.textAlign = 'left'
+      ctx.textBaseline = 'alphabetic'
+      lines.forEach((l, i) => fillT(ctx, l, M, top + cap + i * size * lh))
+    })
   })
 
   // byline: name + a stamped company box
-  const by = 1196
-  over(ctx, () => {
-    font(ctx, 800, 50, 'sans', 'condensed', -0.01)
-    ctx.fillStyle = col('k')
-    ctx.textAlign = 'left'
-    const name = `— ${t.name.toUpperCase()}`
-    ctx.fillText(name, M, by)
-    const nw = ctx.measureText(name).width
-    font(ctx, 500, 25, 'mono', 'normal', 0.08)
-    const co = t.company.toUpperCase()
-    const cw = ctx.measureText(co).width
-    const x = Math.min(W - M - cw - 24, M + nw + 26)
-    const fitsBeside = x > M + nw + 10
-    const bx = fitsBeside ? x : M
-    const byy = fitsBeside ? by - 30 : by + 18
-    ctx.fillStyle = col('p', 1)
-    ctx.fillRect(bx + 5, byy + 4, cw + 24, 42)
-    ctx.strokeStyle = col('k')
-    ctx.lineWidth = 3
-    ctx.strokeRect(bx, byy, cw + 24, 42)
-    ctx.fillStyle = col('k')
-    ctx.fillText(co, bx + 12, byy + 30)
+  part('story byline', () => {
+    const by = 1196
+    over(ctx, () => {
+      font(ctx, 800, 50, 'sans', 'condensed', -0.01)
+      ctx.fillStyle = col('k')
+      ctx.textAlign = 'left'
+      const name = `— ${t.name.toUpperCase()}`
+      fillT(ctx, name, M, by)
+      const nw = tw(ctx, name)
+      font(ctx, 500, 25, 'mono', 'normal', 0.08)
+      const co = t.company.toUpperCase()
+      const cw = tw(ctx, co)
+      const x = Math.min(W - M - cw - 24, M + nw + 26)
+      const fitsBeside = x > M + nw + 10
+      const bx = fitsBeside ? x : M
+      const byy = fitsBeside ? by - 30 : by + 18
+      ctx.fillStyle = col('p', 1)
+      ctx.fillRect(bx + 5, byy + 4, cw + 24, 42)
+      ctx.strokeStyle = col('k')
+      ctx.lineWidth = 3
+      ctx.strokeRect(bx, byy, cw + 24, 42)
+      ctx.fillStyle = col('k')
+      fillT(ctx, co, bx + 12, byy + 30)
+    })
   })
-  folio(ctx, page, side)
+  part('folio', () => folio(ctx, page, side))
 }
 
 /** a rounded box with a tail on its bottom edge, as one closed outline */
@@ -710,130 +765,143 @@ function drawCover(ctx: C2D) {
   ctx.fillRect(bleed, bleed, W - 2 * bleed, H - 2 * bleed)
 
   // masthead
-  over(ctx, () => {
-    font(ctx, 500, 26, 'mono', 'normal', 0.14)
-    ctx.fillStyle = col('k')
-    ctx.textBaseline = 'alphabetic'
-    ctx.textAlign = 'left'
-    ctx.fillText('HARK ZINE', M, 100)
-    ctx.textAlign = 'right'
-    ctx.fillText('ISSUE 01 · VOICES', W - M, 100)
-    ctx.fillRect(M, 124, W - 2 * M, 4)
-  })
-
-  // title metrics: WE / LISTEN. / THEY / TALK.
-  const lines = ['WE', 'LISTEN.', 'THEY', 'TALK.']
-  const setF = (z: number) => font(ctx, 800, z, 'sans', 'condensed', -0.03)
-  let size = 330
-  setF(size)
-  const widest = Math.max(...lines.map(l => ctx.measureText(l).width))
-  size = Math.floor(size * Math.min(1, (W - 2 * M) / widest))
-  setF(size)
-  const lh = 0.84
-  const cap = ctx.measureText('H').actualBoundingBoxAscent
-  const y0 = 212 + cap
-  const weW = ctx.measureText('WE').width
-
-  // a pink starburst sticker in the space beside WE (under the type: black overprints it)
-  {
-    const cx = M + weW + (W - M - (M + weW)) / 2 + 10
-    const cy = y0 - cap * 0.52
-    const r = Math.min(165, (W - M - (M + weW)) / 2 - 6)
-    const burst = star(cx, cy, r, 14, 0.8, 0.1)
-    ctx.fillStyle = col('p', 1)
-    ctx.fill(burst)
+  part('cover masthead', () =>
     over(ctx, () => {
-      ctx.translate(10, 9)
-      ctx.strokeStyle = col('k')
-      ctx.lineWidth = 6
-      ctx.lineJoin = 'round'
-      ctx.stroke(burst)
-    })
-    over(ctx, () => {
-      ctx.translate(cx, cy)
-      ctx.rotate(0.16)
+      font(ctx, 500, 26, 'mono', 'normal', 0.14)
       ctx.fillStyle = col('k')
-      ctx.textAlign = 'center'
       ctx.textBaseline = 'alphabetic'
-      font(ctx, 800, 142, 'sans', 'condensed', -0.02)
-      ctx.fillText('8', 0, 34)
-      font(ctx, 500, 25, 'mono', 'normal', 0.12)
-      ctx.fillText('VOICES', 0, 76)
-    })
-  }
-
-  // WE / LISTEN. in black; THEY / TALK. knocked out to pink with a black drop
-  setF(size)
-  lines.forEach((l, i) => {
-    const y = y0 + i * size * lh
-    if (i < 2) {
-      over(ctx, () => {
-        ctx.fillStyle = col('k')
-        ctx.textAlign = 'left'
-        ctx.fillText(l, M, y)
-      })
-    } else {
-      over(ctx, () => {
-        ctx.fillStyle = col('k')
-        ctx.textAlign = 'left'
-        ctx.fillText(l, M + 12, y + 9)
-      })
-      ctx.fillStyle = col('p', 1)
       ctx.textAlign = 'left'
-      ctx.fillText(l, M, y)
-    }
-  })
+      fillT(ctx, 'HARK ZINE', M, 100)
+      ctx.textAlign = 'right'
+      fillT(ctx, 'ISSUE 01 · VOICES', W - M, 100)
+      ctx.fillRect(M, 124, W - 2 * M, 4)
+    }),
+  )
 
-  // a speech-bubble keyline around THEY TALK.
-  {
-    const top = y0 + 2 * size * lh - cap - 40
-    const bot = y0 + 3 * size * lh + 44
-    const b = bubblePath(M - 30, top, W - 2 * M + 52, bot - top, 56, M + 110, M + 230, M + 40, Math.min(bot + 96, H - 148))
-    stroke(ctx, b, 7)
-  }
+  part('cover title', () => {
+    // title metrics: WE / LISTEN. / THEY / TALK.
+    const lines = ['WE', 'LISTEN.', 'THEY', 'TALK.']
+    const setF = (z: number) => font(ctx, 800, z, 'sans', 'condensed', -0.03)
+    let size = 330
+    setF(size)
+    const widest = Math.max(...lines.map(l => tw(ctx, l)))
+    size = Math.floor(size * Math.min(1, (W - 2 * M) / widest))
+    setF(size)
+    const lh = 0.84
+    const cap = ctx.measureText('H').actualBoundingBoxAscent
+    const y0 = 212 + cap
+    const weW = tw(ctx, 'WE')
+
+    // a pink starburst sticker in the space beside WE (under the type: black overprints it)
+    part('cover sticker', () => {
+      const cx = M + weW + (W - M - (M + weW)) / 2 + 10
+      const cy = y0 - cap * 0.52
+      const r = Math.min(165, (W - M - (M + weW)) / 2 - 6)
+      const burst = star(cx, cy, r, 14, 0.8, 0.1)
+      keep(ctx, () => {
+        ctx.fillStyle = col('p', 1)
+        ctx.fill(burst)
+      })
+      over(ctx, () => {
+        ctx.translate(10, 9)
+        ctx.strokeStyle = col('k')
+        ctx.lineWidth = 6
+        ctx.lineJoin = 'round'
+        ctx.stroke(burst)
+      })
+      over(ctx, () => {
+        ctx.translate(cx, cy)
+        ctx.rotate(0.16)
+        ctx.fillStyle = col('k')
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'alphabetic'
+        font(ctx, 800, 142, 'sans', 'condensed', -0.02)
+        fillT(ctx, '8', 0, 34)
+        font(ctx, 500, 25, 'mono', 'normal', 0.12)
+        fillT(ctx, 'VOICES', 0, 76)
+      })
+    })
+
+    // WE / LISTEN. in black; THEY / TALK. knocked out to pink with a black drop
+    keep(ctx, () => {
+      setF(size)
+      ctx.textAlign = 'left'
+      ctx.textBaseline = 'alphabetic'
+      lines.forEach((l, i) => {
+        const y = y0 + i * size * lh
+        if (i < 2) {
+          over(ctx, () => {
+            ctx.fillStyle = col('k')
+            fillT(ctx, l, M, y)
+          })
+        } else {
+          over(ctx, () => {
+            ctx.fillStyle = col('k')
+            fillT(ctx, l, M + 12, y + 9)
+          })
+          ctx.fillStyle = col('p', 1)
+          fillT(ctx, l, M, y)
+        }
+      })
+    })
+
+    // a speech-bubble keyline around THEY TALK.
+    part('cover bubble', () => {
+      const top = y0 + 2 * size * lh - cap - 40
+      const bot = y0 + 3 * size * lh + 44
+      const b = bubblePath(M - 30, top, W - 2 * M + 52, bot - top, 56, M + 110, M + 230, M + 40, Math.min(bot + 96, H - 148))
+      stroke(ctx, b, 7)
+    })
+  })
 
   // footer: one slim line + the mark
-  const fy = H - 78
-  over(ctx, () => {
-    ctx.fillStyle = col('k')
-    ctx.fillRect(M, fy - 46, W - 2 * M, 4)
-    font(ctx, 500, 24, 'mono', 'normal', 0.12)
-    ctx.textAlign = 'left'
-    ctx.textBaseline = 'alphabetic'
-    ctx.fillText('CLIENT VOICES, IN THEIR OWN WORDS', M, fy)
+  part('cover footer', () => {
+    const fy = H - 78
+    over(ctx, () => {
+      ctx.fillStyle = col('k')
+      ctx.fillRect(M, fy - 46, W - 2 * M, 4)
+      font(ctx, 500, 24, 'mono', 'normal', 0.12)
+      ctx.textAlign = 'left'
+      ctx.textBaseline = 'alphabetic'
+      fillT(ctx, 'CLIENT VOICES, IN THEIR OWN WORDS', M, fy)
+    })
+    const m = markPath(W - M - 30, fy - 9, 60, 0)
+    over(ctx, () => {
+      ctx.fillStyle = col('k')
+      ctx.fill(m, 'evenodd')
+    })
+    // registration marks in the paper margin
+    regMark(ctx, W / 2, 13, 8)
+    regMark(ctx, W / 2, H - 13, 8)
   })
-  const m = markPath(W - M - 30, fy - 9, 60, 0)
-  over(ctx, () => {
-    ctx.fillStyle = col('k')
-    ctx.fill(m, 'evenodd')
-  })
-  // registration marks in the paper margin
-  regMark(ctx, W / 2, 13, 8)
-  regMark(ctx, W / 2, H - 13, 8)
 }
 
 function drawBack(ctx: C2D) {
-  sun(ctx, 500, 560, 420, 'g', 0.7)
-  const m = markPath(500, 560, 460, 0.1)
-  fill(ctx, m, 'p', 0.9, 16, 13, 'evenodd')
-  stroke(ctx, m, 6)
-  over(ctx, () => {
-    ctx.fillStyle = col('k')
-    font(ctx, 800, 120, 'sans', 'condensed', -0.03)
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'alphabetic'
-    ctx.fillText('MAKE THE', W / 2, 1010)
-    ctx.fillText('INTERNET LISTEN.', W / 2, 1112)
-    font(ctx, 500, 24, 'mono', 'normal', 0.14)
-    ctx.fillText('HARK.DIGITAL · ISSUE 01 · VOICES', W / 2, 1200)
-    // a decorative printer's barcode
-    let x = W / 2 - 150
-    const r = [3, 1, 2, 1, 1, 3, 2, 1, 3, 1, 1, 2, 3, 1, 2, 2, 1, 3, 1, 2, 1, 1, 3, 2, 1, 2]
-    r.forEach((w, i) => {
-      if (i % 2 === 0) ctx.fillRect(x, 1250, w * 5, 80)
-      x += w * 5 + 4
-    })
+  part('back mark', () => {
+    sun(ctx, 500, 560, 420, 'g', 0.7)
+    const m = markPath(500, 560, 460, 0.1)
+    fill(ctx, m, 'p', 0.9, 16, 13, 'evenodd')
+    stroke(ctx, m, 6)
   })
+  part('back type', () =>
+    over(ctx, () => {
+      ctx.fillStyle = col('k')
+      font(ctx, 800, 120, 'sans', 'condensed', -0.03)
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'alphabetic'
+      fillT(ctx, 'MAKE THE', W / 2, 1010)
+      fillT(ctx, 'INTERNET LISTEN.', W / 2, 1112)
+      font(ctx, 500, 24, 'mono', 'normal', 0.14)
+      fillT(ctx, 'HARK.DIGITAL · ISSUE 01 · VOICES', W / 2, 1200)
+      // a decorative printer's barcode
+      let x = W / 2 - 150
+      const r = [3, 1, 2, 1, 1, 3, 2, 1, 3, 1, 1, 2, 3, 1, 2, 2, 1, 3, 1, 2, 1, 1, 3, 2, 1, 2]
+      r.forEach((w, i) => {
+        if (i % 2 === 0) ctx.fillRect(x, 1250, w * 5, 80)
+        x += w * 5 + 4
+      })
+    }),
+  )
 }
 
 /* ----------------------------------------------------------------- atlas */
@@ -886,6 +954,7 @@ export async function printPages(pageW: number, yieldFn: () => Promise<void>): P
         else drawStory(ctx, s, side, f + 1)
       }
     } catch (err) {
+      // a page that fails prints as blank paper; the zine (and the chapter) still load
       console.warn('[voices] page print failed', f, err)
     }
     ctx.restore()
@@ -934,41 +1003,44 @@ export function printStamp(size: number) {
   const ctx = c.getContext('2d')!
   ctx.fillStyle = '#000'
   ctx.fillRect(0, 0, size, size)
-  ctx.translate(size / 2, size / 2)
-  ctx.rotate(-0.17)
   const k = size / 1000
-  ctx.scale(k, k)
-  const ink = col('p', 1)
-  ctx.strokeStyle = ink
-  ctx.fillStyle = ink
-  const bw = 820
-  const bh = 470
-  ctx.lineWidth = 26
-  ctx.beginPath()
-  ctx.roundRect(-bw / 2, -bh / 2, bw, bh, 34)
-  ctx.stroke()
-  ctx.lineWidth = 8
-  ctx.beginPath()
-  ctx.roundRect(-bw / 2 + 34, -bh / 2 + 34, bw - 68, bh - 68, 16)
-  ctx.stroke()
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'alphabetic'
-  font(ctx, 800, 270, 'sans', 'condensed', 0.01)
-  ctx.fillText('HEARD', 0, 74)
-  font(ctx, 500, 44, 'mono', 'normal', 0.14)
-  ctx.fillText('HARK.DIGITAL', 0, -118)
-  ctx.fillText('CLIENT VOICES', 0, 160)
+  // a stamp that fails to print leaves a clean page (black = no ink), never a broken chapter
+  part('stamp', () =>
+    keep(ctx, () => {
+      ctx.translate(size / 2, size / 2)
+      ctx.rotate(-0.17)
+      ctx.scale(k, k)
+      const ink = col('p', 1)
+      ctx.strokeStyle = ink
+      ctx.fillStyle = ink
+      const bw = 820
+      const bh = 470
+      ctx.lineWidth = 26
+      ctx.stroke(roundRect(-bw / 2, -bh / 2, bw, bh, 34))
+      ctx.lineWidth = 8
+      ctx.stroke(roundRect(-bw / 2 + 34, -bh / 2 + 34, bw - 68, bh - 68, 16))
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'alphabetic'
+      font(ctx, 800, 270, 'sans', 'condensed', 0.01)
+      fillT(ctx, 'HEARD', 0, 74)
+      font(ctx, 500, 44, 'mono', 'normal', 0.14)
+      fillT(ctx, 'HARK.DIGITAL', 0, -118)
+      fillT(ctx, 'CLIENT VOICES', 0, 160)
+    }),
+  )
   // uneven rubber: speckle and a starved corner knocked back to paper
-  ctx.setTransform(1, 0, 0, 1, 0, 0)
-  ctx.fillStyle = '#000'
-  let seed = 11
-  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647
-  for (let i = 0; i < 520; i++) {
-    const r = (rnd() < 0.93 ? rnd() * 1.4 : rnd() * 4.5) * k * 4
-    ctx.beginPath()
-    ctx.arc(rnd() * size, rnd() * size, r, 0, Math.PI * 2)
-    ctx.fill()
-  }
+  part('stamp speckle', () => {
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    ctx.fillStyle = '#000'
+    let seed = 11
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647
+    for (let i = 0; i < 520; i++) {
+      const r = (rnd() < 0.93 ? rnd() * 1.4 : rnd() * 4.5) * k * 4
+      ctx.beginPath()
+      ctx.arc(rnd() * size, rnd() * size, r, 0, Math.PI * 2)
+      ctx.fill()
+    }
+  })
   const tex = new THREE.CanvasTexture(c)
   tex.colorSpace = THREE.NoColorSpace
   tex.generateMipmaps = true

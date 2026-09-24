@@ -27,7 +27,7 @@ const COPY: Record<string, () => string> = {
     <p class="sr-kicker">${esc(BRAND.name)} · ${esc(BRAND.locale)}</p>
     <h1>${esc(BRAND.tagline)}</h1>
     <p>${esc(BRAND.manifesto)}</p>
-    <p><a href="#work" data-land="work">See the work</a> · <a href="#contact" data-land="contact">Start a project</a></p>`,
+    <p><a href="#work" data-land="work" data-anchor="0">See the work</a> · <a href="#contact" data-land="contact" data-anchor="0">Start a project</a></p>`,
 
   work: () => `
     <h2>${esc(SECTIONS.work.title)}</h2>
@@ -97,7 +97,7 @@ export function buildChapterCopy(id: string, visible = false): HTMLElement | nul
     }),
   )
   // item stops only steer the story (focus does the work); never follow the hash
-  div.querySelectorAll<HTMLAnchorElement>('a[data-anchor][href^="#"]').forEach(a =>
+  div.querySelectorAll<HTMLAnchorElement>('a[data-anchor][href^="#"]:not([data-land])').forEach(a =>
     a.addEventListener('click', e => {
       e.preventDefault()
       const section = a.closest('section')

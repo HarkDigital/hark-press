@@ -1,4 +1,5 @@
 import { BRAND, CONTACT, PROCESS, SECTIONS, SECURITY, SERVICES, STATS, TESTIMONIALS, WORK, workImage } from '../content'
+import { CHAPTERS } from '../chapters'
 import { CONCEPT_TAG, WORDMARK, markSvg } from './mark'
 import { unmountRotateGate } from './rotate'
 import { releaseInert } from './inert'
@@ -7,7 +8,11 @@ import { releaseInert } from './inert'
  * Plain HTML version of the story for browsers without WebGL2 (and the
  * last-resort view if boot fails), printed as a riso zine: newsprint, crop
  * marks, poster headlines, stamped tags, and the work screenshots pulled as
- * two-colour duotones. Same copy, same order as the story, no scene.
+ * two-colour duotones. Same copy, same headlines, same sheet names and the
+ * same order as the story (and its accessible copy layer), no scene.
+ *
+ * The masthead is a real banner, rendered before <main id="track">, so the
+ * page's "Skip to content" link jumps past it to the story itself.
  * Styled by the .fb-* rules in ui.css.
  */
 export function renderFallback(root: HTMLElement) {
@@ -24,14 +29,28 @@ export function renderFallback(root: HTMLElement) {
   }
   const newTab = '<span class="sr-only"> (opens in a new tab)</span>'
   const isPreview = (url: string) => /harktest\.com/.test(url)
-  const sheet = (n: number, label: string) =>
-    `<p class="fb-sheet" aria-hidden="true"><span>Sheet ${String(n).padStart(2, '0')}</span><b>·</b><span>${esc(label)}</span></p>`
+  /** the chapter's own sheet number and print-shop name, exactly as the chrome prints them */
+  const sheet = (id: string) => {
+    const i = CHAPTERS.findIndex(c => c.id === id)
+    if (i < 0) return ''
+    return `<p class="fb-sheet" aria-hidden="true"><span>Sheet ${String(i + 1).padStart(2, '0')}</span><b>·</b><span>${esc(CHAPTERS[i].label)}</span></p>`
+  }
   const inks = ['p', 'g', 'k']
+  // the stats sit where the story prints them: three on the fold's wings, 24/7 on the shredder
+  const statOf = (v: string) => STATS.find(s => s.value === v)
+  const watch = statOf('24/7')
+  const wings = ['10 years', '$1M+', '15'].map(statOf).filter(s => s && s !== watch) as typeof STATS
+  for (const s of STATS) if (s !== watch && !wings.includes(s)) wings.push(s)
+  const statList = (list: typeof STATS, cls = '') =>
+    `<ul class="fb-stats${cls}">${list.map(st => `<li><span class="fb-stat">${esc(st.value)}</span><span class="fb-stat-l">${esc(st.label)}</span></li>`).join('')}</ul>`
 
   root.style.pointerEvents = 'auto'
-  root.innerHTML = `
-  <div class="fb">
-    <header class="fb-top">
+  // the masthead: a banner landmark ahead of <main>, which the skip link targets
+  document.querySelector('.fb-banner')?.remove()
+  const banner = document.createElement('div')
+  banner.className = 'fb fb-banner'
+  banner.innerHTML = `
+    <header class="fb-top" id="fb-top">
       <a class="fb-brand" href="#fb-top" aria-label="${esc(BRAND.name)}, top of page">
         <span class="fb-mark">${markSvg('fb-mark-svg')}</span>
         <span class="fb-brand-text" aria-hidden="true"><span class="fb-word">${WORDMARK}</span><span class="fb-sub">${CONCEPT_TAG}</span></span>
@@ -42,9 +61,15 @@ export function renderFallback(root: HTMLElement) {
         <a class="fb-link" href="#fb-contact">Contact</a>
         <a class="fb-cta" href="${CONTACT.href}">Start a project</a>
       </nav>
-    </header>
+    </header>`
+  root.parentNode?.insertBefore(banner, root)
+  // the skip link lands on <main> itself (focusable, tabindex -1), past the masthead
+  document.querySelector('.skip-link')?.setAttribute('href', `#${root.id || 'track'}`)
+  if (!root.hasAttribute('tabindex')) root.tabIndex = -1
 
-    <section class="fb-hero" id="fb-top" aria-labelledby="fb-h1">
+  root.innerHTML = `
+  <div class="fb">
+    <section class="fb-hero" id="fb-hero" aria-labelledby="fb-h1">
       <span class="fb-dots fb-dots--hero" aria-hidden="true"></span>
       <p class="fb-issue" aria-hidden="true"><span>Issue 01</span><b>·</b><span>Printed in Philadelphia</span></p>
       <p class="hud-eyebrow">${esc(BRAND.locale)}</p>
@@ -57,7 +82,7 @@ export function renderFallback(root: HTMLElement) {
     </section>
 
     <section class="fb-sec" id="fb-work" aria-labelledby="fb-work-h">
-      ${sheet(2, 'Paste-up')}
+      ${sheet('work')}
       <p class="hud-eyebrow">${esc(SECTIONS.work.eyebrow)}</p>
       <h2 class="hud-h2" id="fb-work-h">${accent(SECTIONS.work.title)}</h2>
       <ul class="fb-work">
@@ -74,7 +99,7 @@ export function renderFallback(root: HTMLElement) {
     </section>
 
     <section class="fb-sec" id="fb-services" aria-labelledby="fb-services-h">
-      ${sheet(3, 'Type case')}
+      ${sheet('services')}
       <p class="hud-eyebrow">${esc(SECTIONS.services.eyebrow)}</p>
       <h2 class="hud-h2" id="fb-services-h">${accent(SECTIONS.services.title)}</h2>
       <ul class="fb-grid">
@@ -86,7 +111,7 @@ export function renderFallback(root: HTMLElement) {
     </section>
 
     <section class="fb-sec" id="fb-voices" aria-labelledby="fb-voices-h">
-      ${sheet(4, 'Zine')}
+      ${sheet('voices')}
       <p class="hud-eyebrow">${esc(SECTIONS.voices.eyebrow)}</p>
       <h2 class="hud-h2" id="fb-voices-h">${accent(SECTIONS.voices.title)}</h2>
       <ul class="fb-quotes">
@@ -97,29 +122,28 @@ export function renderFallback(root: HTMLElement) {
     </section>
 
     <section class="fb-sec fb-sec--security" id="fb-security" aria-labelledby="fb-security-h">
-      ${sheet(5, 'Shredder')}
+      ${sheet('shield')}
       <p class="hud-eyebrow">${esc(SECURITY.eyebrow)}</p>
       <h2 class="hud-h2" id="fb-security-h">${accent(SECURITY.title)}</h2>
       <p class="hud-body fb-lede">${esc(SECURITY.body)}</p>
+      ${watch ? statList([watch], ' fb-stats--one') : ''}
       <p class="fb-actions"><a class="hud-btn hud-btn--ghost" href="${SECURITY.href}">${esc(SECURITY.cta)}</a></p>
     </section>
 
     <section class="fb-sec" id="fb-process" aria-labelledby="fb-process-h">
-      ${sheet(6, 'Fold')}
-      <p class="hud-eyebrow">Process</p>
-      <h2 class="hud-h2" id="fb-process-h">How we <em>work</em></h2>
+      ${sheet('process')}
+      <p class="hud-eyebrow">How we work</p>
+      <h2 class="hud-h2" id="fb-process-h">We listen first. <em>Then we build.</em></h2>
       <ol class="fb-grid fb-grid--4">
         ${PROCESS.map(
           (p, i) => `<li class="fb-cell fb-cell--${inks[i % 3]}"><p class="fb-num" aria-hidden="true">${String(i + 1).padStart(2, '0')}</p><h3 class="fb-h3">${esc(p.title)}</h3><p class="hud-body">${esc(p.text)}</p></li>`,
         ).join('')}
       </ol>
-      <ul class="fb-stats">
-        ${STATS.map(st => `<li><span class="fb-stat">${esc(st.value)}</span><span class="fb-stat-l">${esc(st.label)}</span></li>`).join('')}
-      </ul>
+      ${statList(wings)}
     </section>
 
     <section class="fb-sec fb-contact" id="fb-contact" aria-labelledby="fb-contact-h">
-      ${sheet(7, 'Airmail')}
+      ${sheet('contact')}
       <p class="hud-eyebrow">${esc(CONTACT.eyebrow)}</p>
       <h2 class="hud-title" id="fb-contact-h">${esc(CONTACT.title)}</h2>
       <p class="hud-body fb-lede">${esc(CONTACT.body)}</p>

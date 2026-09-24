@@ -1,8 +1,9 @@
 /* ------------------------------------------------------------------
    HERO — "Proof". A job ticket taped to the cutting mat, a scroll
-   sticker, the press readout, and the poster copy laid into the pulled
-   print. Everything here is paper: hard ink shadows, mono slugs, and
-   snappy stamp-down entrances (small overshoot, like stop-motion).
+   sticker, the press readout, and the poster's credit and buttons laid
+   onto the pulled print (the headline itself is printed on the sheet).
+   Everything here is paper: hard ink shadows, mono slugs, and snappy
+   stamp-down entrances (small overshoot, like stop-motion).
    ------------------------------------------------------------------ */
 
 .stage-hero .hero-root {
@@ -246,10 +247,6 @@
   gap: 9px;
   white-space: nowrap;
 }
-.stage-hero .hero-readout__row--reg {
-  padding-top: 7px;
-  border-top: 1.5px dashed rgba(27, 27, 31, 0.42);
-}
 .stage-hero .hero-readout__k {
   width: 72px;
   color: rgba(27, 27, 31, 0.7);
@@ -257,13 +254,6 @@
 .stage-hero .hero-readout__v {
   font-weight: 500;
   font-variant-numeric: tabular-nums;
-}
-.stage-hero .hero-readout__reg {
-  min-width: 5.2ch;
-  text-align: right;
-}
-.stage-hero .hero-readout__to {
-  color: rgba(27, 27, 31, 0.7);
 }
 .stage-hero .hero-readout__ink {
   min-width: 5.5ch;
@@ -290,25 +280,8 @@
 .stage-hero .hero-chip--p.is-on {
   background: var(--pink);
 }
-.stage-hero .hero-readout__state {
-  padding: 2px 6px;
-  border: 1.5px solid var(--ink);
-  border-radius: 2px;
-  font-size: 10px;
-  letter-spacing: 0.08em;
-}
-.stage-hero .hero-readout.is-registered .hero-readout__state {
-  background: var(--green);
-}
 
-/* ---------------- registration callout ---------------- */
-
-.stage-hero .hero-callout .callout-label {
-  font-size: 10.5px;
-  box-shadow: 2px 2px 0 var(--ink);
-}
-
-/* ---------------- poster copy ---------------- */
+/* ---------------- poster credit + buttons ---------------- */
 
 .stage-hero .hero-poster {
   position: absolute;
@@ -324,15 +297,16 @@
   visibility: visible;
 }
 .stage-hero .hero-poster__credit,
-.stage-hero .hero-title,
 .stage-hero .hero-ctas {
   position: absolute;
   left: calc(var(--pw) * 0.085);
   margin: 0;
 }
+/* the credit sits between the top slug and the printed headline (art.ts) */
 .stage-hero .hero-poster__credit {
   top: calc(var(--ph) * 0.125);
-  max-width: calc(var(--pw) * 0.44);
+  max-width: calc(var(--pw) * 0.6);
+  text-wrap: balance;
   font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 500;
@@ -350,14 +324,6 @@
   opacity: 1;
   transform: none;
   transition-delay: 0.1s;
-}
-.stage-hero .hero-title {
-  top: calc(var(--ph) * 0.2);
-  width: calc(var(--pw) * 0.46);
-  font-size: var(--fs, 120px);
-  line-height: 0.84;
-  color: var(--ink);
-  text-wrap: nowrap;
 }
 .stage-hero .hero-ctas {
   bottom: calc(var(--ph) * 0.13);
@@ -409,18 +375,14 @@
     opacity 0.1s ease 0.5s;
 }
 
-/* portrait: mark on top, type in the lower half of the print */
+/* portrait: mark on top, type in the lower half of the print; the credit
+   sits just above the printed headline (whose caps start 52.2% down) */
 .stage-hero .hero-poster.is-port .hero-poster__credit {
   top: auto;
-  bottom: calc(var(--ph) * 0.465);
+  bottom: calc(var(--ph) * 0.506);
   left: calc(var(--pw) * 0.09);
   max-width: calc(var(--pw) * 0.82);
   font-size: 10px;
-}
-.stage-hero .hero-poster.is-port .hero-title {
-  top: calc(var(--ph) * 0.555);
-  left: calc(var(--pw) * 0.09);
-  width: calc(var(--pw) * 0.82);
 }
 .stage-hero .hero-poster.is-port .hero-ctas {
   left: calc(var(--pw) * 0.09);
@@ -432,10 +394,21 @@
   font-size: 11px;
 }
 
+/* portrait layout (set from the 3D layout, not a media query, so the two
+   always agree): the blocks wait along the top of the frame, so the ticket
+   drops below them, onto the sheet, just above the scroll sticker */
+.stage-hero .hero-root.is-port .hero-ticket {
+  top: auto;
+  bottom: calc(var(--safe-bottom) + 50px);
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  width: min(360px, calc(100vw - var(--gutter) * 2 - 6px));
+  transform-origin: 50% 0;
+}
+
 @media (max-width: 767px) {
   .stage-hero .hero-ticket {
-    top: calc(var(--safe-top) - 6px);
-    width: min(330px, calc(100vw - var(--gutter) * 2 - 6px));
     padding: 14px 14px 11px;
   }
   .stage-hero .hero-ticket__text {

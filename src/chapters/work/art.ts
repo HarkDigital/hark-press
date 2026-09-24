@@ -1,6 +1,7 @@
 import { BRAND, type WorkItem } from '../../content'
 import { MARK_SVG } from '../../logo/svgSource'
 import { rng } from '../../core/math'
+import { setPrintFont } from '../../print/type'
 
 /*
  * PASTE-UP print design, drawn on 2D canvas as INK DENSITIES (see
@@ -30,6 +31,7 @@ const K: Ink3 = [0, 0, 1]
 export const ink = (p = 0, g = 0, k = 0) =>
   `rgb(${Math.round(Math.min(1, p) * 255)},${Math.round(Math.min(1, g) * 255)},${Math.round(Math.min(1, k) * 255)})`
 const inkOf = (c: Ink3, a = 1) => ink(c[0] * a, c[1] * a, c[2] * a)
+const clampN = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v))
 
 let fontsPromise: Promise<void> | null = null
 /** The faces the canvases set (fetched by CSS already; this waits for them). */
@@ -45,45 +47,63 @@ export function loadFonts(): Promise<void> {
 
 // ------------------------------------------------------------------ type
 
-let condensed: boolean | null = null
 /**
- * Set the poster face: Bricolage 800, condensed (wdth 75). Returns the
- * horizontal scale to fake the condensing where canvas can't select width.
+ * Tracking (px) that text() applies by hand where the canvas has no
+ * letterSpacing (Safari). Set by mono()/display()/track() before drawing.
  */
-function display(g: G, size: number, weight = 800): number {
-  g.font = `${weight} condensed ${size}px ${FONT}`
-  const any = g as G & { fontStretch?: string; letterSpacing?: string }
-  if ('fontStretch' in g) any.fontStretch = 'condensed'
-  if ('letterSpacing' in g) any.letterSpacing = `${(-0.02 * size).toFixed(1)}px`
-  if (condensed === null) {
-    const a = g.measureText('HARK HARK').width
-    g.font = `${weight} ${size}px ${FONT}`
-    if ('fontStretch' in g) any.fontStretch = 'normal'
-    const b = g.measureText('HARK HARK').width
-    condensed = a < b * 0.9
-    g.font = `${weight} condensed ${size}px ${FONT}`
-    if ('fontStretch' in g) any.fontStretch = 'condensed'
-  }
-  return condensed ? 1 : 0.8
+let handTrack = 0
+function track(g: G, px: number, byHand: boolean) {
+  const any = g as G & { letterSpacing?: string }
+  if ('letterSpacing' in g) {
+    any.letterSpacing = `${px.toFixed(1)}px`
+    handTrack = 0
+  } else handTrack = byHand ? px : 0
 }
 
-function mono(g: G, size: number, weight = 500, track = 0.08) {
+/**
+ * Set the poster face: Bricolage 800, condensed (wdth 75), through the shared
+ * setPrintFont. Returns the x-scale that fakes the condensing where the
+ * canvas can't select width (every Safari); 1 where the browser condensed it.
+ * text() applies it around fillText and width() multiplies measures by it.
+ * The display type's tight tracking is dropped where canvas can't track
+ * (setting it glyph by glyph would lose the kerning).
+ */
+export function display(g: G, size: number, weight = 800): number {
+  track(g, -0.02 * size, false)
+  return setPrintFont(g, weight, size, 'condensed')
+}
+
+function mono(g: G, size: number, weight = 500, trk = 0.08) {
   g.font = `${weight} ${size}px ${MONO}`
-  const any = g as G & { fontStretch?: string; letterSpacing?: string }
+  const any = g as G & { fontStretch?: string }
   if ('fontStretch' in g) any.fontStretch = 'normal'
-  if ('letterSpacing' in g) any.letterSpacing = `${(track * size).toFixed(1)}px`
+  track(g, trk * size, true)
 }
 
 function text(g: G, s: string, x: number, y: number, sx = 1, align: CanvasTextAlign = 'left') {
   g.save()
   g.translate(x, y)
   g.scale(sx, 1)
-  g.textAlign = align
-  g.fillText(s, 0, 0)
+  const chars = handTrack ? [...s] : null
+  if (chars && chars.length > 1) {
+    // letter-space by hand: one glyph at a time, aligned as a whole
+    const adv = chars.map(c => g.measureText(c).width)
+    const total = adv.reduce((a, b) => a + b, 0) + handTrack * (chars.length - 1)
+    let cx = align === 'right' || align === 'end' ? -total : align === 'center' ? -total / 2 : 0
+    g.textAlign = 'left'
+    for (let i = 0; i < chars.length; i++) {
+      g.fillText(chars[i], cx, 0)
+      cx += adv[i] + handTrack
+    }
+  } else {
+    g.textAlign = align
+    g.fillText(s, 0, 0)
+  }
   g.restore()
 }
 
-const width = (g: G, s: string, sx = 1) => g.measureText(s).width * sx
+const width = (g: G, s: string, sx = 1) =>
+  (g.measureText(s).width + (handTrack ? handTrack * Math.max(0, [...s].length - 1) : 0)) * sx
 
 /** Largest size at which `words` wrap into ≤ maxLines lines no wider than maxW (and ≤ maxH tall). */
 function fit(g: G, words: string[], maxW: number, maxH: number, maxLines: number, maxSize: number, lead = 0.86) {
@@ -379,7 +399,7 @@ export function drawPoster(c: HTMLCanvasElement, spec: PosterSpec): PosterArt {
   mono(g, Math.round(14 * u), 500, 0.08)
   let tx = x0
   for (const tag of it.tags) {
-    const tw = g.measureText(tag.toUpperCase()).width + 18 * u
+    const tw = width(g, tag.toUpperCase()) + 18 * u
     g.lineWidth = Math.max(1.2, 2 * u)
     g.strokeStyle = slugC
     if (onDark) g.globalCompositeOperation = 'multiply'
@@ -511,31 +531,47 @@ export function drawIntro(c: HTMLCanvasElement, featured: number, more: number) 
   const asx = display(g, Math.round(110 * u))
   text(g, '→', x1, fy - 2 * u, asx, 'right')
 
-  proofMargin(g, w, h, T, 'HARK PRESS · JOB 000 · PASTE-UP · SHEET 01', u)
+  proofMargin(g, w, h, T, 'HARK PRESS · JOB 000 · PASTE-UP · 80GSM NEWSPRINT', u)
 }
 
 // ------------------------------------------------------------------ lens sheets
 
-/** Full-bleed green sheet that covers the lens at the cuts. */
-export function drawSheet(c: HTMLCanvasElement, big: string, line: string, sub: string) {
+/**
+ * Full-bleed green sheet that covers the lens at the cuts. The square canvas
+ * is spread over the screen `stretch` times wider than it is tall, so type
+ * and marks are drawn 1/stretch as wide and land on screen in proportion
+ * (redrawn when the viewport's shape changes).
+ */
+export function drawSheet(c: HTMLCanvasElement, big: string, line: string, sub: string, stretch = 1) {
   const g = c.getContext('2d')!
   const w = c.width
   const h = c.height
   const u = w / 768
+  const k = 1 / clampN(stretch, 0.25, 4)
   g.globalCompositeOperation = 'source-over'
   g.fillStyle = inkOf(GR, 0.94)
   g.fillRect(0, 0, w, h)
   // halftone ramp band
   halftoneRamp(g, 0, h * 0.8, w, h * 0.2, K, 0, 0.28, 32)
-  g.fillStyle = ink(0, 0.94, 0)
   const cx = w / 2
   g.fillStyle = ink(0, 0.94, 1)
-  const sx = display(g, Math.round(300 * u))
-  text(g, big, cx, h * 0.5 + 90 * u, sx, 'center')
-  mono(g, Math.round(20 * u), 500, 0.14)
-  text(g, line, cx, h * 0.5 + 150 * u, 1, 'center')
-  mono(g, Math.round(14 * u), 500, 0.14)
-  text(g, sub, cx, h * 0.5 - 190 * u, 1, 'center')
+  // a line sets at its size unless it would run off the screen (the sheet
+  // overhangs the view, so only the middle ~70% of its width shows), then it
+  // shrinks whole rather than squeezing
+  const set = (s: string, y: number, sx: number) => {
+    const f = Math.min(1, (w * 0.62) / Math.max(1, width(g, s, sx * k)))
+    g.save()
+    g.translate(cx, y)
+    g.scale(1, f)
+    text(g, s, 0, 0, sx * k * f, 'center')
+    g.restore()
+  }
+  set(big, h * 0.5 + 90 * u, display(g, Math.round(300 * u)))
+  // set a touch larger than the posters' slugs: they print through the lens's coarse screen
+  mono(g, Math.round(26 * u), 500, 0.14)
+  set(line, h * 0.5 + 156 * u, 1)
+  mono(g, Math.round(18 * u), 500, 0.14)
+  set(sub, h * 0.5 - 190 * u, 1)
   g.strokeStyle = ink(0, 0.94, 1)
   g.lineWidth = 2 * u
   for (const [x, y] of [
@@ -544,13 +580,48 @@ export function drawSheet(c: HTMLCanvasElement, big: string, line: string, sub: 
     [w * 0.86, h * 0.5],
   ]) {
     g.beginPath()
-    g.arc(x, y, 14 * u, 0, Math.PI * 2)
-    g.moveTo(x - 24 * u, y)
-    g.lineTo(x + 24 * u, y)
+    g.ellipse(x, y, 14 * u * k, 14 * u, 0, 0, Math.PI * 2)
+    g.moveTo(x - 24 * u * k, y)
+    g.lineTo(x + 24 * u * k, y)
     g.moveTo(x, y - 24 * u)
     g.lineTo(x, y + 24 * u)
     g.stroke()
   }
+}
+
+// ------------------------------------------------------------------ POST NO BILLS
+
+/** The stencil sprayed on the ply: black ink, cut by stencil bridges, with overspray. */
+export function drawStencil(c: HTMLCanvasElement) {
+  const g = c.getContext('2d')!
+  const w = c.width
+  const h = c.height
+  const u = h / 256
+  g.globalCompositeOperation = 'source-over'
+  g.fillStyle = ink()
+  g.fillRect(0, 0, w, h)
+  g.fillStyle = ink(0, 0, 0.92)
+  const word = 'POST NO BILLS'
+  let sx = display(g, Math.round(190 * u))
+  track(g, 8 * u, true)
+  // a full-width face (no canvas condensing) must still fit the board
+  const tw = width(g, word, sx)
+  const maxW = w - 40 * u
+  if (tw > maxW) sx *= maxW / tw
+  text(g, word, w / 2, 200 * u, sx, 'center')
+  // stencil bridges + overspray
+  g.globalCompositeOperation = 'multiply'
+  g.fillStyle = ink(0, 0, 0)
+  const r = rng(9)
+  for (let x = 40 * u; x < w; x += (23 + r() * 18) * u) g.fillRect(x, 0, 5 * u, h)
+  g.globalCompositeOperation = 'lighter'
+  for (let i = 0; i < 1400; i++) {
+    g.fillStyle = ink(0, 0, (40 + Math.floor(r() * 80)) / 255)
+    const x = w / 2 + (r() - 0.5) * w * 0.95
+    const y = (128 + (r() - 0.5) * 220) * u
+    g.fillRect(x, y, 2 * u, 2 * u)
+  }
+  g.globalCompositeOperation = 'source-over'
 }
 
 // ------------------------------------------------------------------ old, torn posters (wall texture)

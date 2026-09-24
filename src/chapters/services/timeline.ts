@@ -9,11 +9,12 @@ import { SERVICES } from '../../content'
  *               "Eleven ways to be heard."
  *  0.085–0.833  eleven jobs, one per service. Each job:
  *                 distribute the last line back into the case, set the new
- *                 one (sorts hop out of their compartments in arcs), lock up
+ *                 one (sorts hop out of their compartments in arcs; its slip
+ *                 goes up on the HUD pile as the first sort lifts), lock up
  *                 the furniture, roll ink across (green or pink), drop a
- *                 sheet, press, peel the proof, and the proof slip stamps
- *                 onto the pile in the HUD.
- *  0.833–0.933  the finale job sets HARK and pulls the last proof.
+ *                 sheet, press, peel the proof, and the slip's PROOF stamp
+ *                 comes down.
+ *  0.833–0.933  the finale job sets HARK and pulls the last proof, bold.
  *  0.933–1.000  out-beat: back into the green ink for the cut.
  */
 
@@ -55,7 +56,7 @@ export const PH = {
   distSpan: 0.12,
   /** one sort's hop */
   hop: 0.15,
-  /** new line is set */
+  /** new line is set (the HUD slip switches to it here) */
   set0: 0.07,
   setSpan: 0.13,
   /** furniture: unlock (start of job) / lock up (after setting) */
@@ -71,7 +72,7 @@ export const PH = {
   press1: 0.67,
   peel1: 0.8,
   fly1: 0.92,
-  /** the proof slip stamps onto the HUD pile */
+  /** the proof is pulled: the slip's PROOF stamp comes down */
   pull: 0.72,
   /** settled: type inked, sheet gone, slip up */
   anchor: 0.94,

@@ -3,6 +3,7 @@ import type { CameraPose, Chapter, ChapterContext, Frame } from '../../core/type
 import { el, rise, setRise } from '../../core/dom'
 import { clamp, lerp, rng, segment, smoothstep } from '../../core/math'
 import { SECTIONS, WORK, workImage } from '../../content'
+import { CHAPTERS } from '../index'
 import { inkCanvasMaterial, inkMaterial } from '../../print/ink'
 import * as art from './art'
 import {
@@ -36,6 +37,9 @@ const FEATURED = WORK.filter(w => w.featured)
 const REST = WORK.filter(w => !w.featured)
 const NF = FEATURED.length
 const NR = REST.length
+/** where this chapter sits in the print run ("Sheet 02 / 07" in the chrome) */
+const RUN = Math.max(0, CHAPTERS.findIndex(c => c.id === 'work'))
+const NEXT = CHAPTERS[RUN + 1]
 
 const DEG = Math.PI / 180
 const UP = new THREE.Vector3(0, 1, 0)
@@ -92,6 +96,8 @@ const BOARD_ON: [number, number] = [BOARD_IN[1] - 0.002, 0.958]
 const SWEEP0 = HOP0 + (NR - 1) * HOP_DT + HOP_LEN + 0.012
 const SWEEP_DT = (0.952 - SWEEP0) / (NR - 1)
 const LENS_OUT: [number, number] = [0.956, 0.992]
+/** the lens sheet overhangs the view 1.1x wider than it does tall */
+const LENS_ASPECT = 1.1
 
 // ---------------------------------------------------------------- helpers
 
@@ -274,6 +280,10 @@ class Work implements Chapter {
   private flyDirty = false
   /** flyer screenshots still in flight (the atlas uploads once they've all settled) */
   private flyPending = NR
+  /** the lens sheet's on-screen width:height (its canvas is square), and whether a redraw is due */
+  private lensStretch = (window.innerWidth / Math.max(1, window.innerHeight)) * LENS_ASPECT
+  private sheetsDrawn = false
+  private sheetsQueued = false
 
   init(ctx: ChapterContext) {
     this.ctx = ctx
@@ -293,6 +303,7 @@ class Work implements Chapter {
       this.jobs.push(() => this.drawIntro())
       this.jobs.push(() => this.drawOld())
       this.jobs.push(() => this.drawSheets())
+      this.sheetsQueued = true
       for (let k = 0; k < NF; k++) this.jobs.push(() => this.drawPosterK(k))
       this.jobs.push(() => this.drawStencil())
       this.jobs.push(() => {
@@ -638,7 +649,7 @@ class Work implements Chapter {
       a.href = item.url
       a.target = '_blank'
       a.rel = 'noopener'
-      el('span', 'hud-label wk-meta', isPreview(item.url) ? 'Pre-launch build' : `Sheet ${pad(k + 1, 2)} · 3-ink riso`, foot)
+      el('span', 'hud-label wk-meta', isPreview(item.url) ? 'Pre-launch build' : '3-ink riso · 80gsm', foot)
       this.cards.push({ slot, card, name })
     })
 
@@ -717,8 +728,17 @@ class Work implements Chapter {
   }
 
   private drawSheets() {
-    art.drawSheet(this.lens.texIn.image as HTMLCanvasElement, '02', 'PASTE-UP · SELECTED WORK', 'HARK PRESS · SHEET 02 / 07')
-    art.drawSheet(this.lens.texOut.image as HTMLCanvasElement, '03', 'NEXT SHEET · TYPE CASE →', 'HARK PRESS · SHEET 03 / 07')
+    this.sheetsQueued = false
+    this.sheetsDrawn = true
+    // "Sheet" is the chapter's number in the run, as the chrome's print-run readout has it
+    const of = `/ ${pad(CHAPTERS.length, 2)}`
+    const here = pad(RUN + 1, 2)
+    const st = this.lensStretch
+    art.drawSheet(this.lens.texIn.image as HTMLCanvasElement, here, `${CHAPTERS[RUN].label.toUpperCase()} · SELECTED WORK`, `HARK PRESS · SHEET ${here} ${of}`, st)
+    if (NEXT) {
+      const next = pad(RUN + 2, 2)
+      art.drawSheet(this.lens.texOut.image as HTMLCanvasElement, next, `NEXT SHEET · ${NEXT.label.toUpperCase()} →`, `HARK PRESS · SHEET ${next} ${of}`, st)
+    } else art.drawSheet(this.lens.texOut.image as HTMLCanvasElement, here, 'END OF RUN', `HARK PRESS · SHEET ${here} ${of}`, st)
     this.upload(this.lens.texIn)
     this.upload(this.lens.texOut)
   }
@@ -734,30 +754,7 @@ class Work implements Chapter {
 
   private drawStencil() {
     const c = (this.stencil.material as THREE.ShaderMaterial).uniforms.uMap.value.image as HTMLCanvasElement
-    const g = c.getContext('2d')!
-    g.clearRect(0, 0, c.width, c.height)
-    g.fillStyle = 'rgb(0,0,0)'
-    g.fillRect(0, 0, c.width, c.height)
-    g.fillStyle = 'rgb(0,0,235)'
-    g.font = `800 condensed 190px ${art.FONT}`
-    const any = g as CanvasRenderingContext2D & { fontStretch?: string; letterSpacing?: string }
-    if ('fontStretch' in g) any.fontStretch = 'condensed'
-    if ('letterSpacing' in g) any.letterSpacing = '8px'
-    g.textAlign = 'center'
-    g.fillText('POST NO BILLS', c.width / 2, 200)
-    // stencil bridges + overspray
-    g.globalCompositeOperation = 'multiply'
-    g.fillStyle = 'rgb(0,0,0)'
-    const r = rng(9)
-    for (let x = 40; x < c.width; x += 23 + r() * 18) g.fillRect(x, 0, 5, c.height)
-    g.globalCompositeOperation = 'lighter'
-    for (let i = 0; i < 1400; i++) {
-      g.fillStyle = `rgb(0,0,${Math.floor(40 + r() * 80)})`
-      const x = c.width / 2 + (r() - 0.5) * c.width * 0.95
-      const y = 128 + (r() - 0.5) * 220
-      g.fillRect(x, y, 2, 2)
-    }
-    g.globalCompositeOperation = 'source-over'
+    art.drawStencil(c)
     const tex = (this.stencil.material as THREE.ShaderMaterial).uniforms.uMap.value as THREE.Texture
     this.upload(tex)
   }
@@ -845,12 +842,26 @@ class Work implements Chapter {
     const H = f.height
     this.portrait = W / H < 0.95
     this.ctx.stage.classList.toggle('is-portrait', this.portrait)
-    const safeTop = clamp(0.105 * H, 80, 112)
-    const safeBot = clamp(0.095 * H, 72, 100)
+    // the lens sheet spans the view at LENS_ASPECT x the screen's shape: reprint its type to match
+    const stretch = (W / H) * LENS_ASPECT
+    if (Math.abs(stretch / this.lensStretch - 1) > 0.02) {
+      this.lensStretch = stretch
+      if (this.sheetsDrawn && !this.sheetsQueued) {
+        this.sheetsQueued = true
+        this.jobs.push(() => this.drawSheets())
+        this.pump()
+      }
+    }
     const gutter = clamp(0.034 * W, 16, 48)
     const fov = this.portrait ? 40 : 32
     const S = this.S
     const stageRect = this.ctx.stage.getBoundingClientRect()
+    // the chrome bands, as CSS has them (--safe-top / --safe-bottom, incl.
+    // the device insets): the board column spans exactly between them
+    const bandR = this.boardEl.getBoundingClientRect()
+    const laid = bandR.height > 0
+    const safeTop = laid ? bandR.top - stageRect.top : clamp(0.105 * H, 80, 112)
+    const safeBot = laid ? H - (bandR.bottom - stageRect.top) : clamp(0.105 * H, 82, 110)
 
     // opener
     const introR = this.introEl.getBoundingClientRect()
@@ -873,8 +884,8 @@ class Work implements Chapter {
         const cw = cardEl.offsetWidth
         reg =
           side === 'right'
-            ? { x0: gutter + cw + 36, x1: W - gutter * 0.6, y0: safeTop - 22, y1: H - safeBot + 14 }
-            : { x0: gutter * 0.6, x1: W - gutter - cw - 36, y0: safeTop - 22, y1: H - safeBot + 14 }
+            ? { x0: gutter + cw + 36, x1: W - gutter * 0.6, y0: safeTop - 22, y1: H - safeBot + 4 }
+            : { x0: gutter * 0.6, x1: W - gutter - cw - 36, y0: safeTop - 22, y1: H - safeBot + 4 }
       }
       dirOf(side === 'right' ? 5 : -5, 1.5, this.D)
       const p = S.proj[k] ?? pose()
@@ -891,7 +902,7 @@ class Work implements Chapter {
       reg = { x0: gutter * 0.6, x1: W - gutter * 0.6, y0: bb.bottom - stageRect.top + 10, y1: cb.top - stageRect.top - 12 }
     } else {
       const bb = bc.getBoundingClientRect()
-      reg = { x0: bb.right - stageRect.left + 40, x1: W - gutter * 0.6, y0: safeTop - 16, y1: H - safeBot + 10 }
+      reg = { x0: bb.right - stageRect.left + 40, x1: W - gutter * 0.6, y0: safeTop - 16, y1: H - safeBot + 2 }
     }
     dirOf(4, 1, this.D)
     frameTo(S.board, BOARD_AT, this.D, BOARD_W + 0.5, BOARD_H + 0.5, reg, W, H, fov)
@@ -1188,7 +1199,7 @@ class Work implements Chapter {
     if (!L.mesh.visible) return
     const dist = 1.2
     const hh = 2 * dist * Math.tan((this.cur.fov * DEG) / 2) * 1.3
-    const ww = hh * (frame.width / frame.height) * 1.1
+    const ww = hh * (frame.width / frame.height) * LENS_ASPECT
     u.uSize.value.set(ww, hh)
     u.uDist.value = dist
     if (showIn) {
